@@ -480,7 +480,7 @@ model Subscription {
   organizationId         String              @unique
   plan                   SubscriptionPlan    @default(solo)
   status                 SubscriptionStatus  @default(trialing)
-  provider               PaymentProvider     @default(stripe)
+  provider               PaymentProvider     @default(flutterwave)
   providerCustomerId     String?
   providerSubscriptionId String?
   currentPeriodEnd       DateTime?

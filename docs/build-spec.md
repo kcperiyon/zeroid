@@ -420,11 +420,22 @@ only, a human sends/posts.
   (manual/internal booking only, `Appointment.externalCalendarEventId`
   reserved for when real Google Calendar OAuth exists — don't build that
   integration without real credentials). Team management already landed in
-  Phase 1 (see §11 build status). **Not started, and don't build without
+  Phase 1 (see §11 build status). **Email: key retrieved, sender identity
+  still blocking (2026-08-30).** `BREVO_API_KEY` was pulled from the
+  account's already-logged-in Brevo dashboard and `src/lib/email.ts` built
+  — but it deliberately refuses to send without `BREVO_FROM_EMAIL`, because
+  no verified sender exists for Zeroid: there's no domain (`zeroid.net`
+  isn't registered), and the account's existing verified Brevo senders
+  belong to other businesses (`lagosbusinessgroup.com`,
+  `moneyvarsitygroup@gmail.com`) — sending under either would misrepresent
+  who the email is from. That's the owner's call, not mine to default. Once
+  a sender is verified and `BREVO_FROM_EMAIL` is set, actual email features
+  (welcome emails, notifications, follow-up sequences) can be built on top
+  of the now-working abstraction. **Not started, and don't build without
   real credentials first:** licensed-data prospecting (needs an actual
-  Apollo/Clearbit/PDL account) and email automation (needs a real
-  provider key) — building either against fake/placeholder credentials
-  would violate the cost-discipline and honesty principles in §14.
+  Apollo/Clearbit/PDL account) — building it against fake/placeholder
+  credentials would violate the cost-discipline and honesty principles in
+  §14.
 - **Phase 3:** paid advertising (Meta/Google Ads adapters), campaign creative
   generation + testing, multi-touch attribution, AI sales intelligence
   (pattern-mining across campaigns/sources/reps), predictive lead scoring.
@@ -436,14 +447,23 @@ only, a human sends/posts.
 
 ## 13. Decisions (owner delegated to Claude's recommendation, 2026-08-30)
 
-- **Billing rail: Stripe first, confirmed.** Stripe is the only one of the
-  three candidates with first-class metered usage-billing, which the AI
-  credit system (§9) needs from day one — Flutterwave doesn't model
-  metered/overage billing as natively. The vision doc's target users (§3:
-  coaches, consultants, agencies, SMEs) also skew global, not NG-exclusive,
-  unlike this account's other products. Flutterwave gets added in Phase 2 as
-  a second rail once a real NGN customer needs it, same dual-provider
-  pattern already proven on Flux9/Mongozutu — just not first.
+- **Billing rail: Flutterwave, corrected by the owner 2026-08-30 (was
+  "Stripe first").** The Stripe-first recommendation below was made without
+  knowing the account's actual state: "I am using flutterwave for now. we
+  dont have stripe yet." That's the real constraint — build against what
+  actually exists. Flutterwave is the live rail (same pattern already
+  proven on Mongozutu/Flux9); Stripe adapter code stays stubbed in the
+  abstraction layer for later (e.g. if Zeroid ever needs metered/overage
+  billing Flutterwave doesn't model as natively), not built first. No live
+  Flutterwave keys exist for *this* product yet — `/billing`'s purchase
+  button stays disabled until `FLUTTERWAVE_SECRET_KEY` is actually
+  configured for Zeroid specifically (do not reuse another product's live
+  merchant keys without being told to).
+  <br>Original reasoning, kept for context on why the wrong call got made:
+  Stripe has first-class metered usage-billing, which the AI credit system
+  (§9) would benefit from, and the vision doc's target users (§3: coaches,
+  consultants, agencies, SMEs) skew global rather than NG-exclusive — both
+  still true, just not the actual constraint that matters right now.
 - **First messaging channel: WhatsApp, confirmed.** Matches the vision doc's
   §40 emphasis, and is now lower-risk than originally scoped: it's a thin
   adapter over `../platform-services`' Channels service (§8), which is
