@@ -1,0 +1,533 @@
+// Phase 1 schema (see docs/build-spec.md §6 and §11). Every model below is
+// scoped to a tenant column (organization_id at the org level, business_id
+// below Business) and every one of those tables gets a matching Postgres RLS
+// policy in migrations/<ts>_rls/migration.sql — app-level scoping via
+// src/lib/tenant-db.ts is the primary defense, RLS is the backstop. See
+// docs/build-spec.md §5 for why both layers are mandatory.
+//
+// This pass wires end-to-end: Organization/User/OrgMembership, Business,
+// Product. Everything else below (Icp/ScoringConfig/Lead*/Deal/AiInstruction/
+// KnowledgeSource/Subscription/AiUsageLog/AuditLog/AiCreditWallet) is schema
+// only for now — modeled up front so later phases are additive migrations,
+// not schema surgery — with CRUD/UI landing in following passes per the
+// Phase 1 item list in docs/build-spec.md §11.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// Connection URL for migrate/introspect comes from prisma7.config.ts (Prisma 7
+// moved it out of the schema file). PrismaClient at runtime still needs its own
+// url/adapter wiring wherever it's constructed — see src/lib/db.ts.
+datasource db {
+  provider = "postgresql"
+}
+
+enum OrgRole {
+  owner
+  admin
+  manager
+  sales
+  marketing
+  viewer
+}
+
+enum IcpSource {
+  manual
+  ai_discovered
+}
+
+enum LeadChannel {
+  manual
+  csv
+  webhook
+  whatsapp
+  facebook
+  instagram
+  email
+  google
+  tiktok
+  linkedin
+  referral
+  api
+}
+
+enum LeadStage {
+  new
+  contacted
+  engaged
+  qualified
+  hot
+  appointment
+  proposal
+  negotiation
+  won
+  lost
+  nurture
+}
+
+enum AiInstructionStatus {
+  active
+  inactive
+}
+
+enum KnowledgeType {
+  text
+  pdf
+  url
+  doc
+}
+
+enum KnowledgeStatus {
+  pending
+  processing
+  ready
+  failed
+}
+
+enum SubscriptionPlan {
+  solo
+  pro
+  team
+  business
+  enterprise
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  canceled
+}
+
+enum PaymentProvider {
+  stripe
+  flutterwave
+}
+
+enum TaskStatus {
+  open
+  done
+}
+
+enum AppointmentStatus {
+  scheduled
+  completed
+  canceled
+  no_show
+}
+
+enum ReferralStatus {
+  pending
+  converted
+  declined
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  memberships    OrgMembership[]
+  businesses     Business[]
+  subscription   Subscription?
+  creditWallet   AiCreditWallet?
+  auditLogs      AuditLog[]
+  invites        Invite[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  memberships OrgMembership[]
+  auditLogs   AuditLog[]
+}
+
+// A user's role within one organization. A user can belong to more than one
+// organization (e.g. an agency operator running client accounts) — role is
+// per-membership, never global.
+model OrgMembership {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrgRole  @default(owner)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  revoked
+}
+
+// No email service is configured yet (build-spec §14 cost discipline — no
+// new provider without a reason), so an invite is a link the owner/admin
+// shares manually rather than something the app emails. token is the only
+// thing that gates acceptance — see /invite/[token].
+model Invite {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  role           OrgRole      @default(sales)
+  token          String       @unique @default(cuid())
+  status         InviteStatus @default(pending)
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+}
+
+model Business {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  industry       String?
+  settings       Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  organization  Organization    @relation(fields: [organizationId], references: [id])
+  products      Product[]
+  icpProfiles   IcpProfile[]
+  scoringConfig ScoringConfig?
+  leadSources   LeadSource[]
+  leads         Lead[]
+  deals         Deal[]
+  instructions  AiInstruction[]
+  knowledge     KnowledgeSource[]
+  aiUsageLogs   AiUsageLog[]
+  tasks         Task[]
+  appointments  Appointment[]
+  referrals     Referral[]
+  contentItems  ContentItem[]
+
+  @@index([organizationId])
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String
+  description String?
+  price       Decimal? @db.Decimal(12, 2)
+  currency    String   @default("USD")
+  createdAt   DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+model IcpProfile {
+  id         String    @id @default(cuid())
+  businessId String
+  name       String
+  attributes Json
+  source     IcpSource @default(manual)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+// One row per business — weights for the lead-scoring formula (build-spec §6
+// alteration: configurable per business, not a global constant).
+model ScoringConfig {
+  id         String   @id @default(cuid())
+  businessId String   @unique
+  weights    Json // { icpFit, problemSeverity, purchaseIntent, budgetFit, urgency, engagement, decisionAuthority }
+  hotAt      Int      @default(80)
+  warmAt     Int      @default(60)
+  updatedAt  DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+}
+
+model LeadSource {
+  id         String      @id @default(cuid())
+  businessId String
+  channel    LeadChannel
+  name       String
+  createdAt  DateTime    @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+  leads    Lead[]
+
+  @@index([businessId])
+}
+
+// Qualification factors (icpScore + the six below) are manually entered by a
+// rep for Phase 1 — there's no AI conversation yet to populate them. Each is
+// 0-100 ("how strong is this factor"), and leadScore is the weighted average
+// per ScoringConfig.weights (see src/lib/scoring.ts). When the AI
+// qualification engine lands later, it fills these same fields instead of a
+// human — the CRM/scoring code downstream doesn't need to change.
+model Lead {
+  id         String    @id @default(cuid())
+  businessId String
+  sourceId   String?
+  name       String?
+  email      String?
+  phone      String?
+  company    String?
+  contact    Json      @default("{}")
+  stage      LeadStage @default(new)
+  assignedToUserId String?
+
+  icpScore           Int?
+  problemSeverity    Int?
+  purchaseIntent     Int?
+  budgetFit          Int?
+  urgency            Int?
+  engagement         Int?
+  decisionAuthority  Int?
+  leadScore          Int?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  business     Business      @relation(fields: [businessId], references: [id])
+  source       LeadSource?   @relation(fields: [sourceId], references: [id])
+  events       LeadEvent[]
+  deals        Deal[]
+  tasks        Task[]
+  appointments Appointment[]
+  referrals    Referral[]    @relation("ReferrerLead")
+
+  @@index([businessId])
+  @@index([businessId, stage])
+}
+
+// Denormalized businessId (not just leadId) so the RLS policy doesn't need a
+// join — see docs/build-spec.md §6 note on LeadEvent.
+model LeadEvent {
+  id         String   @id @default(cuid())
+  businessId String
+  leadId     String
+  type       String
+  payload    Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id])
+
+  @@index([businessId])
+  @@index([leadId, createdAt])
+}
+
+model Deal {
+  id         String    @id @default(cuid())
+  businessId String
+  leadId     String
+  value      Decimal?  @db.Decimal(12, 2)
+  currency   String    @default("USD")
+  wonAt      DateTime?
+  lostAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+  lead     Lead     @relation(fields: [leadId], references: [id])
+
+  @@index([businessId])
+}
+
+// Generic task — doubles as the human-handover mechanism (build-spec §11
+// item 12 / vision doc §27): a lead reaching "hot" auto-creates one of these
+// rather than a separate Handover model, since a handover *is* "something a
+// human needs to do about this lead."
+model Task {
+  id               String     @id @default(cuid())
+  businessId       String
+  leadId           String?
+  title            String
+  note             String?
+  status           TaskStatus @default(open)
+  assignedToUserId String?
+  dueAt            DateTime?
+  createdAt        DateTime   @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+  lead     Lead?    @relation(fields: [leadId], references: [id])
+
+  @@index([businessId, status])
+  @@index([leadId])
+}
+
+// Phase 2 (build-spec §12 / vision doc §30). Manual/internal only for now —
+// no Google Calendar sync yet (needs real OAuth credentials this account
+// doesn't have configured), so this is booked and tracked inside Zeroid,
+// not pushed to an external calendar. externalCalendarEventId is reserved
+// for when that integration lands, so this doesn't need a schema change then.
+model Appointment {
+  id                     String            @id @default(cuid())
+  businessId             String
+  leadId                 String
+  startAt                DateTime
+  status                 AppointmentStatus @default(scheduled)
+  notes                  String?
+  externalCalendarEventId String?
+  createdAt              DateTime          @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+  lead     Lead     @relation(fields: [leadId], references: [id])
+
+  @@index([businessId, startAt])
+}
+
+// Phase 2 (build-spec §12 / vision doc §31). referrerLeadId is the existing
+// lead/customer making the referral; the referral itself becomes a new Lead
+// (via LeadChannel.referral) once/if they actually reach out — this row
+// just tracks the ask and its outcome.
+model Referral {
+  id             String         @id @default(cuid())
+  businessId     String
+  referrerLeadId String
+  referredName   String
+  referredContact String?
+  status         ReferralStatus @default(pending)
+  createdAt      DateTime       @default(now())
+
+  business     Business @relation(fields: [businessId], references: [id])
+  referrerLead Lead     @relation("ReferrerLead", fields: [referrerLeadId], references: [id])
+
+  @@index([businessId])
+}
+
+enum ContentPurpose {
+  awareness
+  problem_identification
+  education
+  authority
+  trust
+  objection_handling
+  lead_capture
+  conversion
+}
+
+enum ContentStatus {
+  draft
+  approved
+  published
+}
+
+// Organic content engine (build-spec §12 / vision doc §16-17), scoped down
+// to what's honestly buildable without a licensed-scraping/social-posting
+// integration: AI drafts content tied to a purpose and the business's ICP,
+// a human reviews/edits and publishes it themselves (build-spec §37 "AI
+// Suggest" tier — same pattern as the follow-up drafter). No auto-posting to
+// any platform.
+model ContentItem {
+  id         String         @id @default(cuid())
+  businessId String
+  purpose    ContentPurpose
+  channel    String // e.g. "linkedin", "email", "whatsapp_broadcast" — free text for now, no platform integration to validate against
+  prompt     String // what was asked for, kept for regeneration/audit
+  content    String
+  status     ContentStatus  @default(draft)
+  createdAt  DateTime       @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId, status])
+}
+
+model AiInstruction {
+  id         String               @id @default(cuid())
+  businessId String
+  name       String
+  content    String
+  priority   Int                  @default(0)
+  status     AiInstructionStatus  @default(active)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+// Metadata/status only — chunking, embedding, and retrieval happen in
+// ../platform-services' Knowledge service, not here. See build-spec §11 item 4.
+model KnowledgeSource {
+  id         String          @id @default(cuid())
+  businessId String
+  type       KnowledgeType
+  title      String
+  status     KnowledgeStatus @default(pending)
+  createdAt  DateTime        @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+}
+
+model Subscription {
+  id                     String              @id @default(cuid())
+  organizationId         String              @unique
+  plan                   SubscriptionPlan    @default(solo)
+  status                 SubscriptionStatus  @default(trialing)
+  provider               PaymentProvider     @default(stripe)
+  providerCustomerId     String?
+  providerSubscriptionId String?
+  currentPeriodEnd       DateTime?
+  createdAt              DateTime            @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+}
+
+// Separate credit wallet per organization, shared across its businesses —
+// see build-spec §9. Balance changes happen only through withMetering() once
+// the AI abstraction layer lands; this pass just seeds the row on signup.
+model AiCreditWallet {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  balance        Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+}
+
+// Ledger of actual AI provider calls — see build-spec §7 withMetering().
+model AiUsageLog {
+  id             String   @id @default(cuid())
+  businessId     String
+  task           String
+  model          String
+  tokensIn       Int
+  tokensOut      Int
+  creditsCharged Int
+  createdAt      DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId, createdAt])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  actorUserId    String?
+  action         String
+  target         String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  actor        User?        @relation(fields: [actorUserId], references: [id])
+
+  @@index([organizationId, createdAt])
+}
