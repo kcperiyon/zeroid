@@ -1,12 +1,14 @@
 // Brevo transactional email — see docs/build-spec.md §14. Plain REST calls,
 // no SDK dependency needed for something this small.
 //
-// Refuses to send without BREVO_FROM_EMAIL configured, on purpose: this
-// account has no domain for Zeroid yet (zeroid.net isn't registered) and
-// its other verified Brevo senders belong to different businesses
-// (lagosbusinessgroup.com, moneyvarsitygroup@gmail.com) — sending under
-// either would misrepresent who the email is from. That's a real decision
-// for the business owner, not something to default silently.
+// Refuses to send without BREVO_FROM_EMAIL configured — that's a deliberate
+// safety net, not a hoop to jump through: this account has no domain for
+// Zeroid yet (zeroid.net isn't registered), so BREVO_FROM_EMAIL currently
+// holds an explicit owner-approved placeholder (kelechi@lagosbusinessgroup.com,
+// 2026-08-30 — "i will buy the domain later. you can create a placeholder"),
+// not a real Zeroid address. Swap it for a zeroid.net address once that
+// domain exists; until then this still refuses to send if the env var ever
+// gets cleared, rather than silently falling back to nothing.
 
 interface SendEmailInput {
   to: { email: string; name?: string }[];

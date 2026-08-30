@@ -420,18 +420,16 @@ only, a human sends/posts.
   (manual/internal booking only, `Appointment.externalCalendarEventId`
   reserved for when real Google Calendar OAuth exists — don't build that
   integration without real credentials). Team management already landed in
-  Phase 1 (see §11 build status). **Email: key retrieved, sender identity
-  still blocking (2026-08-30).** `BREVO_API_KEY` was pulled from the
-  account's already-logged-in Brevo dashboard and `src/lib/email.ts` built
-  — but it deliberately refuses to send without `BREVO_FROM_EMAIL`, because
-  no verified sender exists for Zeroid: there's no domain (`zeroid.net`
-  isn't registered), and the account's existing verified Brevo senders
-  belong to other businesses (`lagosbusinessgroup.com`,
-  `moneyvarsitygroup@gmail.com`) — sending under either would misrepresent
-  who the email is from. That's the owner's call, not mine to default. Once
-  a sender is verified and `BREVO_FROM_EMAIL` is set, actual email features
-  (welcome emails, notifications, follow-up sequences) can be built on top
-  of the now-working abstraction. **Not started, and don't build without
+  Phase 1 (see §11 build status). **Email: fully wired (2026-08-30).**
+  `BREVO_API_KEY` pulled from the account's Brevo dashboard,
+  `src/lib/email.ts` built. Sender identity resolved: owner chose a
+  **placeholder** — `kelechi@lagosbusinessgroup.com`, verified instantly in
+  Brevo since that domain is already authenticated there — to use until
+  `zeroid.net` is registered and a permanent sender replaces it ("i will
+  buy the domain later. you can create a placeholder"). `BREVO_FROM_EMAIL`
+  is set; actual email features (welcome emails, notifications, follow-up
+  sequences) can now be built on the working abstraction whenever there's a
+  concrete reason to. **Not started, and don't build without
   real credentials first:** licensed-data prospecting (needs an actual
   Apollo/Clearbit/PDL account) — building it against fake/placeholder
   credentials would violate the cost-discipline and honesty principles in

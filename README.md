@@ -7,8 +7,7 @@ different problem, separate codebase). Working name was "Lead AI" until
 later (not yet owned, don't reference it as live anywhere).
 
 **Status: Phase 1 complete except items blocked on `../platform-services`;
-Phase 2 started.** No git repo yet — everything below lives only on this
-machine's disk right now.
+Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kcperiyon/zeroid).
 
 ### Built and verified (real browser walkthroughs + automated tests, not just written)
 
@@ -34,8 +33,8 @@ machine's disk right now.
   Claude adapter (`@anthropic-ai/sdk`), task→model routing, and credit
   metering (`AiUsageLog` + `AiCreditWallet` debit) — all verified with a
   fake provider in `tests/ai-metering.test.ts` (7 cases total across both
-  test files) so the plumbing is proven without spending real tokens
-  (no `ANTHROPIC_API_KEY` is set in this repo — see Known limitations).
+  test files) so the plumbing was proven without spending real tokens
+  before a real key ever existed.
 - **`ANTHROPIC_API_KEY` is configured and every AI feature is verified with
   real output** (2026-08-30): AI follow-up drafts, the organic content
   studio, and **AI-suggested qualification factors** (paste in what you know
@@ -57,21 +56,27 @@ machine's disk right now.
 - **Analytics:** per-business dashboard (`/businesses/[id]/analytics`) —
   lead/stage/source counts, deals won, AI credits used, wallet balance.
 - **Billing:** informational only (`/billing`) — plan, status, credit
-  balance. No live Stripe checkout; purchasing is disabled until
-  `STRIPE_SECRET_KEY` is configured.
+  balance. Rail is **Flutterwave** (corrected 2026-08-30 — this account
+  doesn't have Stripe); purchasing is disabled until a real
+  `FLUTTERWAVE_SECRET_KEY` for Zeroid specifically is configured (don't
+  reuse another product's live merchant keys).
+- **Email:** `src/lib/email.ts` (Brevo, plain REST). `BREVO_API_KEY` is
+  live. Sender is a placeholder — `kelechi@lagosbusinessgroup.com`,
+  verified instantly since that domain's already authenticated in Brevo —
+  used until `zeroid.net` is registered and a real Zeroid address replaces
+  it (owner's explicit call, 2026-08-30). No feature calls `sendEmail()`
+  yet; this is infrastructure only, ready for the next thing that needs it.
 
 ### Known limitations / what's genuinely blocked
 
 - **Train Your AI and WhatsApp are not built at all** — both wait on
   `../platform-services`' extraction from Skynett landing first, per the
-  sequencing decision in `docs/build-spec.md` §0/§13.
-- **Prospecting and email automation are not built** — both need real
-  third-party credentials (licensed data providers; an email
-  provider/SMTP key) this account doesn't have configured. Don't build fake
-  integrations for these — wire them for real once keys exist.
-- **No git repo.** Everything above exists only on disk. Worth `git init` +
-  an initial commit before this gets any bigger — deliberately not done
-  automatically since committing wasn't asked for.
+  sequencing decision in `docs/build-spec.md` §0/§13. The extraction itself
+  is done (pulled from the real VPS 2026-08-30) — Skynett's production
+  orchestrator hasn't been repointed at it yet, that's a separate step.
+- **Prospecting is not built** — needs a real licensed-data-provider
+  account (Apollo/Clearbit/PDL) this account doesn't have. Don't build a
+  fake integration for it — wire it for real once an account exists.
 - Still a single Next.js app, not yet split into the `apps/web` +
   `apps/worker` monorepo layout `docs/build-spec.md` §4 describes —
   deliberate, since no background worker is needed yet. Split when the
