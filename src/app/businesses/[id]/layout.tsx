@@ -21,6 +21,7 @@ export default async function BusinessLayout({
     { href: `/businesses/${businessId}`, label: "Products" },
     { href: `/businesses/${businessId}/leads`, label: "Leads" },
     { href: `/businesses/${businessId}/icp`, label: "ICP" },
+    { href: `/businesses/${businessId}/knowledge`, label: "Train AI" },
     { href: `/businesses/${businessId}/content`, label: "Content" },
     { href: `/businesses/${businessId}/referrals`, label: "Referrals" },
     { href: `/businesses/${businessId}/handoff`, label: "Handoff" },

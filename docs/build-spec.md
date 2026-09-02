@@ -404,6 +404,25 @@ drafts, an organic content studio pulled forward from Phase 2 — see §12
 below), not just the interface. Both are "AI Suggest" tier (§37): draft
 only, a human sends/posts.
 
+### Build status (2026-09-02)
+
+Item 15 superseded: billing runs on **Flutterwave**, not Stripe (see §13) —
+hosted-checkout credit purchase (`/billing`, `/api/billing/credits/checkout`
++ `/verify`) is live and server-side-verified end to end, real Anthropic
+and Brevo keys are configured. Item 4 (Train Your AI) is now built: text +
+URL ingestion (`/businesses/:id/knowledge`), backed by
+`../platform-services`' Knowledge service (`src/lib/knowledge/client.ts`),
+with a "test what it learned" retrieval panel on the same page as proof the
+pipeline actually works, not just that it accepts input. Verified via a
+full real browser signup→business→ingest→query walkthrough — every route
+(ingest, delete, query) correctly fails clean (502, clear message, no
+partial DB state) rather than crashing, which is the expected state until
+the owner runs the nginx command that activates `/platform/knowledge/` on
+`wa.lagosbusinessgroup.com` (see the platform-services-project memory).
+**PDF/doc upload is explicitly not wired** — text and URL only for now,
+flagged in the UI itself. Item 7's WhatsApp inbound piece remains blocked
+on a real Meta number for a Zeroid business, same as before.
+
 ---
 
 ## 12. Phase roadmap (unchanged in spirit from vision doc §50–52)

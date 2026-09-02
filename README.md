@@ -55,11 +55,24 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
   only — no Google Calendar sync yet.
 - **Analytics:** per-business dashboard (`/businesses/[id]/analytics`) —
   lead/stage/source counts, deals won, AI credits used, wallet balance.
-- **Billing:** informational only (`/billing`) — plan, status, credit
-  balance. Rail is **Flutterwave** (corrected 2026-08-30 — this account
-  doesn't have Stripe); purchasing is disabled until a real
-  `FLUTTERWAVE_SECRET_KEY` for Zeroid specifically is configured (don't
-  reuse another product's live merchant keys).
+- **Billing:** live Flutterwave hosted-checkout credit purchase
+  (`/billing`, `/api/billing/credits/checkout` + `/verify`) — server
+  re-verifies against Flutterwave directly rather than trusting the
+  redirect's own query params (`src/app/billing/return/page.tsx` handles
+  both the plain `tx_ref` and `?resp=<JSON>` redirect shapes). Real live
+  `FLUTTERWAVE_SECRET_KEY` is configured (shared account with
+  Mongozutu/Flux9 — see the flutterwave-shared-account-rotation memory
+  before ever rotating it). No webhook: this account's one Flutterwave
+  webhook slot already belongs to Mongozutu/Flux9, accepted as reasonable
+  pre-revenue.
+- **Train Your AI:** text + URL ingestion (`/businesses/[id]/knowledge`),
+  delegated to `../platform-services`' Knowledge service
+  (`src/lib/knowledge/client.ts`) through an authenticated nginx path on
+  `wa.lagosbusinessgroup.com` (the service itself has no auth — see the
+  platform-services-project memory's 2026-09-02 security-fix entry). Same
+  page has a "test what it learned" retrieval panel so training is
+  verified working, not just accepted. PDF/doc upload is not wired —
+  text and URL only.
 - **Email:** `src/lib/email.ts` (Brevo, plain REST). `BREVO_API_KEY` is
   live. Sender is a placeholder — `kelechi@lagosbusinessgroup.com`,
   verified instantly since that domain's already authenticated in Brevo —
@@ -69,11 +82,11 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
 
 ### Known limitations / what's genuinely blocked
 
-- **Train Your AI and WhatsApp are not built at all** — both wait on
-  `../platform-services`' extraction from Skynett landing first, per the
-  sequencing decision in `docs/build-spec.md` §0/§13. The extraction itself
-  is done (pulled from the real VPS 2026-08-30) — Skynett's production
-  orchestrator hasn't been repointed at it yet, that's a separate step.
+- **WhatsApp lead capture is not built** — `../platform-services`'
+  extraction+migration is fully done and live (2026-09-02, real Skynett
+  traffic flows through it), but Zeroid's own consumer side needs a real
+  Meta WhatsApp Business number connected to a Zeroid business, which
+  doesn't exist yet — can't be fully verified end-to-end until one does.
 - **Prospecting is not built** — needs a real licensed-data-provider
   account (Apollo/Clearbit/PDL) this account doesn't have. Don't build a
   fake integration for it — wire it for real once an account exists.
