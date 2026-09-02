@@ -6,7 +6,7 @@ import type { AiResult } from "./types";
 // see docs/build-spec.md §7/§9. This is a starting point for the metering
 // mechanism, not a calibrated business rate; revisit once real usage data
 // exists on what this account can actually charge per credit.
-const CREDITS_PER_USD = 1000;
+export const CREDITS_PER_USD = 1000;
 
 export function creditsForResult(result: AiResult): number {
   const pricing = MODEL_PRICING[result.model];

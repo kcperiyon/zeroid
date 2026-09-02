@@ -134,6 +134,7 @@ model Organization {
   businesses     Business[]
   subscription   Subscription?
   creditWallet   AiCreditWallet?
+  creditPurchases CreditPurchase[]
   auditLogs      AuditLog[]
   invites        Invite[]
 }
@@ -499,6 +500,32 @@ model AiCreditWallet {
   updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
+}
+
+enum CreditPurchaseStatus {
+  pending
+  completed
+  failed
+}
+
+// One row per attempted credit purchase — txRef is unique so a repeated
+// verify call (e.g. the owner double-clicking "I've paid" or Flutterwave's
+// redirect firing twice) can never credit the wallet more than once for the
+// same transaction. See build-spec §9/§15 — this is the audit trail credit
+// metering was missing before there was any way to actually buy credits.
+model CreditPurchase {
+  id             String               @id @default(cuid())
+  organizationId String
+  txRef          String               @unique
+  amountUsd      Decimal              @db.Decimal(10, 2)
+  credits        Int
+  status         CreditPurchaseStatus @default(pending)
+  createdAt      DateTime             @default(now())
+  completedAt    DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }
 
 // Ledger of actual AI provider calls — see build-spec §7 withMetering().
