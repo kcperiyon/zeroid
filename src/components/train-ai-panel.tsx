@@ -183,7 +183,7 @@ export function TrainAiPanel({ businessId, sources }: { businessId: string; sour
             {results.map((r, i) => (
               <div key={i} className="rounded-lg border border-neutral-200 bg-white p-3">
                 <p className="text-sm text-neutral-800">{r.content}</p>
-                <p className="mt-1 text-xs text-neutral-400">{r.source} · match {Math.round(r.score * 100)}%</p>
+                <p className="mt-1 text-xs text-neutral-400">{r.source} · match #{i + 1}</p>
               </div>
             ))}
           </div>
