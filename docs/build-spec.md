@@ -413,14 +413,15 @@ and Brevo keys are configured. Item 4 (Train Your AI) is now built: text +
 URL ingestion (`/businesses/:id/knowledge`), backed by
 `../platform-services`' Knowledge service (`src/lib/knowledge/client.ts`),
 with a "test what it learned" retrieval panel on the same page as proof the
-pipeline actually works, not just that it accepts input. Verified via a
-full real browser signup→business→ingest→query walkthrough — every route
-(ingest, delete, query) correctly fails clean (502, clear message, no
-partial DB state) rather than crashing, which is the expected state until
-the owner runs the nginx command that activates `/platform/knowledge/` on
-`wa.lagosbusinessgroup.com` (see the platform-services-project memory).
-**PDF/doc upload is explicitly not wired** — text and URL only for now,
-flagged in the UI itself. Item 7's WhatsApp inbound piece remains blocked
+pipeline actually works, not just that it accepts input. **Live-verified
+end to end**: ingested a real text chunk through the now-active
+`/platform/knowledge/` path on `wa.lagosbusinessgroup.com`, asked a
+natural-language question, got the exact right chunk back, correctly
+tenant-scoped to Zeroid's own business id. Found and fixed one real bug
+from this test — the knowledge service's similarity score isn't bounded
+0-1 (came back negative for a correct result), so the UI shows rank order
+instead of a fabricated match percentage. **PDF/doc upload is explicitly
+not wired** — text and URL only for now, flagged in the UI itself. Item 7's WhatsApp inbound piece remains blocked
 on a real Meta number for a Zeroid business, same as before.
 
 ---
