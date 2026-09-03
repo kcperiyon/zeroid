@@ -13,6 +13,7 @@ type Prospect = {
   email: string | null;
   website: string | null;
   category: string | null;
+  sourceUrl: string | null;
   status: "new" | "imported" | "dismissed";
   createdAt: string;
 };
@@ -32,6 +33,15 @@ export function ProspectingPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  const [newsQuery, setNewsQuery] = useState("");
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError] = useState<string | null>(null);
+
+  const [checkUrl, setCheckUrl] = useState("");
+  const [checkLoading, setCheckLoading] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
+  const [checkResult, setCheckResult] = useState<string[] | null>(null);
 
   const selectedIcp = icpProfiles.find((p) => p.id === icpId);
   const suggestedQuery = selectedIcp
@@ -69,6 +79,49 @@ export function ProspectingPanel({
     });
     setBusyId(null);
     router.refresh();
+  }
+
+  async function handleNewsSearch(event: FormEvent) {
+    event.preventDefault();
+    setNewsLoading(true);
+    setNewsError(null);
+
+    const res = await fetch(`/api/businesses/${businessId}/prospects/news-search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: newsQuery || suggestedQuery }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: "Something went wrong." }));
+      setNewsError(body.error ?? "Something went wrong.");
+      setNewsLoading(false);
+      return;
+    }
+
+    setNewsLoading(false);
+    router.refresh();
+  }
+
+  async function handleCheckWebsite(event: FormEvent) {
+    event.preventDefault();
+    setCheckLoading(true);
+    setCheckError(null);
+    setCheckResult(null);
+
+    const res = await fetch(`/api/businesses/${businessId}/prospects/check-website`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: checkUrl }),
+    });
+    const body = await res.json().catch(() => ({ error: "Something went wrong." }));
+    if (!res.ok) {
+      setCheckError(body.error ?? "Something went wrong.");
+    } else {
+      setCheckResult(body.techStack);
+      router.refresh();
+    }
+    setCheckLoading(false);
   }
 
   const newProspects = prospects.filter((p) => p.status === "new");
@@ -116,6 +169,66 @@ export function ProspectingPanel({
         </form>
       </div>
 
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">Trigger events (news)</h2>
+        <form onSubmit={handleNewsSearch} className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+          <div className="space-y-1">
+            <label htmlFor="news-query" className="text-sm font-medium text-neutral-700">Search recent news</label>
+            <input
+              id="news-query"
+              value={newsQuery}
+              onChange={(e) => setNewsQuery(e.target.value)}
+              placeholder={suggestedQuery ? `e.g. "raises funding" ${suggestedQuery}` : 'e.g. "raises funding" Lagos'}
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
+            />
+            <p className="text-xs text-neutral-400">
+              Finds businesses in the news for funding, expansion, launches, or hiring — free, no account needed.
+            </p>
+          </div>
+          {newsError && <p className="text-sm text-red-600">{newsError}</p>}
+          <button
+            type="submit"
+            disabled={newsLoading || (!newsQuery && !suggestedQuery)}
+            className="rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+          >
+            {newsLoading ? "Searching…" : "Search news triggers"}
+          </button>
+        </form>
+      </div>
+
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">Check a website</h2>
+        <form onSubmit={handleCheckWebsite} className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+          <div className="space-y-1">
+            <label htmlFor="check-url" className="text-sm font-medium text-neutral-700">Domain or URL</label>
+            <input
+              id="check-url"
+              required
+              value={checkUrl}
+              onChange={(e) => setCheckUrl(e.target.value)}
+              placeholder="e.g. example.com"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
+            />
+            <p className="text-xs text-neutral-400">
+              Checks what tools a business already runs (Shopify, HubSpot, payment providers, etc.) and tracks it as a prospect.
+            </p>
+          </div>
+          {checkError && <p className="text-sm text-red-600">{checkError}</p>}
+          {checkResult && (
+            <p className="text-sm text-neutral-700">
+              {checkResult.length > 0 ? `Detected: ${checkResult.join(", ")}` : "No known tools detected."}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={checkLoading}
+            className="rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+          >
+            {checkLoading ? "Checking…" : "Check website"}
+          </button>
+        </form>
+      </div>
+
       {newProspects.length > 0 && (
         <div>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">New prospects</h2>
@@ -124,7 +237,9 @@ export function ProspectingPanel({
               <div key={p.id} className="rounded-lg border border-neutral-200 bg-white p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-neutral-900">{p.name}</p>
+                    <p className="text-sm font-medium text-neutral-900">
+                      {p.name} <span className="text-xs font-normal text-neutral-400">({p.channel})</span>
+                    </p>
                     <p className="text-xs text-neutral-500">
                       {[p.category, p.address].filter(Boolean).join(" · ")}
                     </p>
@@ -132,6 +247,11 @@ export function ProspectingPanel({
                       <p className="mt-1 text-xs text-neutral-400">
                         {[p.phone, p.website].filter(Boolean).join(" · ")}
                       </p>
+                    )}
+                    {p.sourceUrl && (
+                      <a href={p.sourceUrl} target="_blank" rel="noreferrer" className="mt-1 block text-xs text-neutral-400 underline">
+                        Source article
+                      </a>
                     )}
                   </div>
                   <div className="flex shrink-0 gap-2">

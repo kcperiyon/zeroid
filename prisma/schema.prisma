@@ -51,6 +51,7 @@ enum LeadChannel {
   linkedin
   referral
   api
+  news
 }
 
 enum LeadStage {
@@ -297,6 +298,7 @@ model Prospect {
   email      String?
   website    String?
   category   String?
+  sourceUrl  String?
   status     ProspectStatus @default(new)
   createdAt  DateTime       @default(now())
   leadId     String?        @unique
