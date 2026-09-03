@@ -460,10 +460,18 @@ on a real Meta number for a Zeroid business, same as before.
   no automation against LinkedIn's ToS). `Prospect` model, RLS-scoped. Not
   yet live-tested against a real `GOOGLE_PLACES_API_KEY` — the surrounding
   import/dismiss logic is verified against realistic inserted test data
-  instead. Other prospecting channels discussed but not yet built: website
-  tech-stack detection, Google News RSS trigger monitoring, YouTube Data
-  API, Etsy API — planned as additional `channel` values feeding the same
-  `Prospect` model.
+  instead. **Two more channels added 2026-09-03, both live-verified:**
+  news triggers (Google News RSS, free/no key, one AI call per search
+  extracts which headlines name a real business worth prospecting) and
+  website tech-stack detection (fetch a company's own homepage, match a
+  small honest signature set — Shopify/WordPress/HubSpot/payment
+  providers — no key needed). Verified against real sites (shopify.com,
+  techcrunch.com) with correct, independently-checkable results. Testing
+  the news-trigger AI extraction surfaced a real, separate finding: the
+  configured `ANTHROPIC_API_KEY` account is out of credit balance — blocks
+  every AI feature in the app, not just this one, until topped up. Still
+  to build: YouTube Data API, Etsy API — planned as additional `channel`
+  values on the same `Prospect` model.
 - **Phase 3:** paid advertising (Meta/Google Ads adapters), campaign creative
   generation + testing, multi-touch attribution, AI sales intelligence
   (pattern-mining across campaigns/sources/reps), predictive lead scoring.

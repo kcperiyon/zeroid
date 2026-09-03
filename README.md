@@ -87,7 +87,12 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
   import/dismiss/idempotency logic underneath it is, verified against
   realistic inserted test data. Deliberately does **not** automate
   LinkedIn — real ToS/legal exposure there — instead points at the
-  existing CSV importer for a manual Sales Navigator search.
+  existing CSV importer for a manual Sales Navigator search. Two more
+  channels added and live-verified 2026-09-03: **news triggers** (Google
+  News RSS, free/no key, one AI call extracts real businesses worth
+  prospecting from funding/expansion/hiring headlines) and **website
+  tech-stack detection** (fetch a company's own homepage, detect
+  Shopify/WordPress/HubSpot/payment providers etc., no key needed).
 
 ### Known limitations / what's genuinely blocked
 
@@ -95,6 +100,11 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
   the documented Places API (New) contract, but `GOOGLE_PLACES_API_KEY`
   isn't configured. Needs a Google Cloud project with billing enabled
   (Google's ~$200/mo free credit should cover this at MVP volume).
+- **The configured `ANTHROPIC_API_KEY` account is out of credit balance**
+  (discovered 2026-09-03 testing news-trigger extraction — real API error,
+  400 `insufficient_quota`) — this blocks **every** AI feature in the app
+  right now (qualify, follow-up drafts, content studio, news-trigger
+  extraction), not just prospecting. Needs the account topped up.
 - **WhatsApp lead capture is not built** — `../platform-services`'
   extraction+migration is fully done and live (2026-09-02, real Skynett
   traffic flows through it), but Zeroid's own consumer side needs a real
