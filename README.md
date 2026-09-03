@@ -80,8 +80,21 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
   it (owner's explicit call, 2026-08-30). No feature calls `sendEmail()`
   yet; this is infrastructure only, ready for the next thing that needs it.
 
+- **Prospecting:** search Google Places by an ICP's industry+location
+  (`/businesses/[id]/prospecting`), review candidates, import selected ones
+  as real leads — nothing auto-imported. `GOOGLE_PLACES_API_KEY` is not
+  configured yet, so the actual Places call isn't live-tested — the
+  import/dismiss/idempotency logic underneath it is, verified against
+  realistic inserted test data. Deliberately does **not** automate
+  LinkedIn — real ToS/legal exposure there — instead points at the
+  existing CSV importer for a manual Sales Navigator search.
+
 ### Known limitations / what's genuinely blocked
 
+- **Google Places prospecting needs a real key** — code is built against
+  the documented Places API (New) contract, but `GOOGLE_PLACES_API_KEY`
+  isn't configured. Needs a Google Cloud project with billing enabled
+  (Google's ~$200/mo free credit should cover this at MVP volume).
 - **WhatsApp lead capture is not built** — `../platform-services`'
   extraction+migration is fully done and live (2026-09-02, real Skynett
   traffic flows through it), but Zeroid's own consumer side needs a real

@@ -454,6 +454,16 @@ on a real Meta number for a Zeroid business, same as before.
   Apollo/Clearbit/PDL account) — building it against fake/placeholder
   credentials would violate the cost-discipline and honesty principles in
   §14.
+  **Started 2026-09-03:** prospecting via Google Places (search by ICP
+  industry+location, review, import-as-lead — same AI-Suggest pattern as
+  everything else) + a human-assisted LinkedIn path (existing CSV importer,
+  no automation against LinkedIn's ToS). `Prospect` model, RLS-scoped. Not
+  yet live-tested against a real `GOOGLE_PLACES_API_KEY` — the surrounding
+  import/dismiss logic is verified against realistic inserted test data
+  instead. Other prospecting channels discussed but not yet built: website
+  tech-stack detection, Google News RSS trigger monitoring, YouTube Data
+  API, Etsy API — planned as additional `channel` values feeding the same
+  `Prospect` model.
 - **Phase 3:** paid advertising (Meta/Google Ads adapters), campaign creative
   generation + testing, multi-touch attribution, AI sales intelligence
   (pattern-mining across campaigns/sources/reps), predictive lead scoring.
