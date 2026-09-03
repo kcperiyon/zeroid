@@ -214,6 +214,7 @@ model Business {
   appointments  Appointment[]
   referrals     Referral[]
   contentItems  ContentItem[]
+  prospects     Prospect[]
 
   @@index([organizationId])
 }
@@ -272,6 +273,41 @@ model LeadSource {
   @@index([businessId])
 }
 
+enum ProspectStatus {
+  new
+  imported
+  dismissed
+}
+
+// A candidate lead surfaced by an external prospecting source (Google
+// Places first; more sources land as additional `channel` values reuse the
+// same enum Lead/LeadSource already use). Kept separate from Lead until a
+// human reviews and imports it — same "AI Suggest, human executes" pattern
+// as everything else in this app. `externalId` is the source's own id
+// (Google's place id) so re-running the same search doesn't create
+// duplicates for this business.
+model Prospect {
+  id         String         @id @default(cuid())
+  businessId String
+  channel    LeadChannel
+  externalId String
+  name       String
+  address    String?
+  phone      String?
+  email      String?
+  website    String?
+  category   String?
+  status     ProspectStatus @default(new)
+  createdAt  DateTime       @default(now())
+  leadId     String?        @unique
+
+  business Business @relation(fields: [businessId], references: [id])
+  lead     Lead?    @relation(fields: [leadId], references: [id])
+
+  @@unique([businessId, channel, externalId])
+  @@index([businessId])
+}
+
 // Qualification factors (icpScore + the six below) are manually entered by a
 // rep for Phase 1 — there's no AI conversation yet to populate them. Each is
 // 0-100 ("how strong is this factor"), and leadScore is the weighted average
@@ -309,6 +345,7 @@ model Lead {
   tasks        Task[]
   appointments Appointment[]
   referrals    Referral[]    @relation("ReferrerLead")
+  prospect     Prospect?
 
   @@index([businessId])
   @@index([businessId, stage])

@@ -20,6 +20,7 @@ export default async function BusinessLayout({
   const tabs = [
     { href: `/businesses/${businessId}`, label: "Products" },
     { href: `/businesses/${businessId}/leads`, label: "Leads" },
+    { href: `/businesses/${businessId}/prospecting`, label: "Prospecting" },
     { href: `/businesses/${businessId}/icp`, label: "ICP" },
     { href: `/businesses/${businessId}/knowledge`, label: "Train AI" },
     { href: `/businesses/${businessId}/content`, label: "Content" },
