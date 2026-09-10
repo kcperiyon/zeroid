@@ -468,10 +468,23 @@ on a real Meta number for a Zeroid business, same as before.
   providers — no key needed). Verified against real sites (shopify.com,
   techcrunch.com) with correct, independently-checkable results. Testing
   the news-trigger AI extraction surfaced a real, separate finding: the
-  configured `ANTHROPIC_API_KEY` account is out of credit balance — blocks
-  every AI feature in the app, not just this one, until topped up. Still
-  to build: YouTube Data API, Etsy API — planned as additional `channel`
-  values on the same `Prospect` model.
+  configured `ANTHROPIC_API_KEY` account was out of credit balance —
+  **resolved 2026-09-10**, owner topped it up, all four AI-dependent
+  features (qualify, follow-up, content studio, news-trigger extraction)
+  re-verified live with fresh real output.
+
+  **All 6 planned prospecting channels now built (2026-09-10):** Places,
+  LinkedIn-manual, news triggers, tech-stack, and finally **YouTube Data
+  API** (search.list + channels.list, extracts a published contact email
+  from a channel's About description when present) and **Etsy Open API
+  v3** (listings/active + shops/{id} — real limitation: Etsy exposes no
+  seller email/phone through this API, results are shop name + URL only).
+  Both built against Google/Etsy's documented contracts and verified at
+  the route/RLS/dedup level against real requests, same as Places — the
+  actual external calls aren't live-tested since neither `YOUTUBE_API_KEY`
+  nor `ETSY_API_KEY` exists yet. Prospecting v1 scope is complete; next
+  real step is getting those two keys and live-verifying, or moving on to
+  a different Phase 2 item.
 - **Phase 3:** paid advertising (Meta/Google Ads adapters), campaign creative
   generation + testing, multi-touch attribution, AI sales intelligence
   (pattern-mining across campaigns/sources/reps), predictive lead scoring.
