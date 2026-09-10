@@ -49,7 +49,11 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
   with zero invented discount; an AI-suggested qualification on a
   logistics-company lead correctly scored ICP fit at 15/100 (this business
   sells coaching) while still flagging high problem severity/urgency,
-  landing the lead at a hand-verified score of 58.
+  landing the lead at a hand-verified score of 58. The account briefly ran
+  out of credit balance (2026-09-03 – 2026-09-10, real `insufficient_quota`
+  errors, not a code bug); topped up and all four AI-dependent features
+  (qualify, follow-up, content studio, news-trigger prospecting)
+  re-verified live with fresh real output on 2026-09-10.
 - **Referrals & appointments** (Phase 2): logged from a lead's detail page,
   listed at `/businesses/[id]/referrals`; appointments are manual/internal
   only — no Google Calendar sync yet.
@@ -100,11 +104,6 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
   the documented Places API (New) contract, but `GOOGLE_PLACES_API_KEY`
   isn't configured. Needs a Google Cloud project with billing enabled
   (Google's ~$200/mo free credit should cover this at MVP volume).
-- **The configured `ANTHROPIC_API_KEY` account is out of credit balance**
-  (discovered 2026-09-03 testing news-trigger extraction — real API error,
-  400 `insufficient_quota`) — this blocks **every** AI feature in the app
-  right now (qualify, follow-up drafts, content studio, news-trigger
-  extraction), not just prospecting. Needs the account topped up.
 - **WhatsApp lead capture is not built** — `../platform-services`'
   extraction+migration is fully done and live (2026-09-02, real Skynett
   traffic flows through it), but Zeroid's own consumer side needs a real
