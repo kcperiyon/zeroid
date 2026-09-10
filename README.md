@@ -91,27 +91,35 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
   import/dismiss/idempotency logic underneath it is, verified against
   realistic inserted test data. Deliberately does **not** automate
   LinkedIn — real ToS/legal exposure there — instead points at the
-  existing CSV importer for a manual Sales Navigator search. Two more
-  channels added and live-verified 2026-09-03: **news triggers** (Google
-  News RSS, free/no key, one AI call extracts real businesses worth
-  prospecting from funding/expansion/hiring headlines) and **website
-  tech-stack detection** (fetch a company's own homepage, detect
-  Shopify/WordPress/HubSpot/payment providers etc., no key needed).
+  existing CSV importer for a manual Sales Navigator search. **All 6
+  planned channels now built (2026-09-10):** news triggers (Google News
+  RSS, free/no key, one AI call extracts real businesses worth prospecting
+  from funding/expansion/hiring headlines — live-verified), website
+  tech-stack detection (fetch a company's own homepage, detect
+  Shopify/WordPress/HubSpot/payment providers etc., no key needed —
+  live-verified), YouTube Data API (find channels, extract a published
+  contact email from their About section — built, needs `YOUTUBE_API_KEY`
+  to live-test), and Etsy Open API v3 (find shops — built, needs
+  `ETSY_API_KEY`; note Etsy exposes no seller email/phone through this API
+  at all, results are shop name + URL only).
 
 ### Known limitations / what's genuinely blocked
 
-- **Google Places prospecting needs a real key** — code is built against
-  the documented Places API (New) contract, but `GOOGLE_PLACES_API_KEY`
-  isn't configured. Needs a Google Cloud project with billing enabled
-  (Google's ~$200/mo free credit should cover this at MVP volume).
+- **Three prospecting channels need real keys** — Google Places, YouTube
+  Data API, and Etsy are all built against their documented contracts but
+  not live-tested: `GOOGLE_PLACES_API_KEY`, `YOUTUBE_API_KEY`, and
+  `ETSY_API_KEY` aren't configured yet. See `.env.example` for how to get
+  each one (all free/near-free at this volume). News triggers and
+  tech-stack detection need no key and are already live-verified.
 - **WhatsApp lead capture is not built** — `../platform-services`'
   extraction+migration is fully done and live (2026-09-02, real Skynett
   traffic flows through it), but Zeroid's own consumer side needs a real
   Meta WhatsApp Business number connected to a Zeroid business, which
   doesn't exist yet — can't be fully verified end-to-end until one does.
-- **Prospecting is not built** — needs a real licensed-data-provider
-  account (Apollo/Clearbit/PDL) this account doesn't have. Don't build a
-  fake integration for it — wire it for real once an account exists.
+- **Licensed-data prospecting (Apollo/Clearbit/PDL) deliberately not
+  built** — the 6 free/official channels above were built instead after
+  an explicit cost discussion with the owner; don't add a paid
+  data-broker integration without being asked.
 - Still a single Next.js app, not yet split into the `apps/web` +
   `apps/worker` monorepo layout `docs/build-spec.md` §4 describes —
   deliberate, since no background worker is needed yet. Split when the
