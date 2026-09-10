@@ -18,6 +18,62 @@ type Prospect = {
   createdAt: string;
 };
 
+function SimpleSearchForm({
+  title,
+  label,
+  placeholder,
+  helpText,
+  buttonLabel,
+  loadingLabel,
+  query,
+  setQuery,
+  loading,
+  error,
+  disabled,
+  onSubmit,
+}: {
+  title: string;
+  label: string;
+  placeholder: string;
+  helpText: string;
+  buttonLabel: string;
+  loadingLabel: string;
+  query: string;
+  setQuery: (v: string) => void;
+  loading: boolean;
+  error: string | null;
+  disabled?: boolean;
+  onSubmit: (e: FormEvent) => void;
+}) {
+  const id = `search-${title.toLowerCase().replace(/\s+/g, "-")}`;
+  return (
+    <div>
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">{title}</h2>
+      <form onSubmit={onSubmit} className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="space-y-1">
+          <label htmlFor={id} className="text-sm font-medium text-neutral-700">{label}</label>
+          <input
+            id={id}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={placeholder}
+            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
+          />
+          <p className="text-xs text-neutral-400">{helpText}</p>
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <button
+          type="submit"
+          disabled={loading || disabled}
+          className="rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+        >
+          {loading ? loadingLabel : buttonLabel}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 export function ProspectingPanel({
   businessId,
   icpProfiles,
@@ -42,6 +98,14 @@ export function ProspectingPanel({
   const [checkLoading, setCheckLoading] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
   const [checkResult, setCheckResult] = useState<string[] | null>(null);
+
+  const [youtubeQuery, setYoutubeQuery] = useState("");
+  const [youtubeLoading, setYoutubeLoading] = useState(false);
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+
+  const [etsyQuery, setEtsyQuery] = useState("");
+  const [etsyLoading, setEtsyLoading] = useState(false);
+  const [etsyError, setEtsyError] = useState<string | null>(null);
 
   const selectedIcp = icpProfiles.find((p) => p.id === icpId);
   const suggestedQuery = selectedIcp
@@ -83,24 +147,17 @@ export function ProspectingPanel({
 
   async function handleNewsSearch(event: FormEvent) {
     event.preventDefault();
-    setNewsLoading(true);
-    setNewsError(null);
+    await runChannelSearch("news-search", newsQuery, setNewsLoading, setNewsError);
+  }
 
-    const res = await fetch(`/api/businesses/${businessId}/prospects/news-search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: newsQuery || suggestedQuery }),
-    });
+  async function handleYoutubeSearch(event: FormEvent) {
+    event.preventDefault();
+    await runChannelSearch("youtube-search", youtubeQuery, setYoutubeLoading, setYoutubeError);
+  }
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({ error: "Something went wrong." }));
-      setNewsError(body.error ?? "Something went wrong.");
-      setNewsLoading(false);
-      return;
-    }
-
-    setNewsLoading(false);
-    router.refresh();
+  async function handleEtsySearch(event: FormEvent) {
+    event.preventDefault();
+    await runChannelSearch("etsy-search", etsyQuery, setEtsyLoading, setEtsyError);
   }
 
   async function handleCheckWebsite(event: FormEvent) {
@@ -122,6 +179,29 @@ export function ProspectingPanel({
       router.refresh();
     }
     setCheckLoading(false);
+  }
+
+  async function runChannelSearch(
+    endpoint: string,
+    q: string,
+    setLoading: (v: boolean) => void,
+    setError: (v: string | null) => void
+  ) {
+    setLoading(true);
+    setError(null);
+    const res = await fetch(`/api/businesses/${businessId}/prospects/${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: q || suggestedQuery }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: "Something went wrong." }));
+      setError(body.error ?? "Something went wrong.");
+      setLoading(false);
+      return;
+    }
+    setLoading(false);
+    router.refresh();
   }
 
   const newProspects = prospects.filter((p) => p.status === "new");
@@ -169,32 +249,50 @@ export function ProspectingPanel({
         </form>
       </div>
 
-      <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">Trigger events (news)</h2>
-        <form onSubmit={handleNewsSearch} className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
-          <div className="space-y-1">
-            <label htmlFor="news-query" className="text-sm font-medium text-neutral-700">Search recent news</label>
-            <input
-              id="news-query"
-              value={newsQuery}
-              onChange={(e) => setNewsQuery(e.target.value)}
-              placeholder={suggestedQuery ? `e.g. "raises funding" ${suggestedQuery}` : 'e.g. "raises funding" Lagos'}
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
-            />
-            <p className="text-xs text-neutral-400">
-              Finds businesses in the news for funding, expansion, launches, or hiring — free, no account needed.
-            </p>
-          </div>
-          {newsError && <p className="text-sm text-red-600">{newsError}</p>}
-          <button
-            type="submit"
-            disabled={newsLoading || (!newsQuery && !suggestedQuery)}
-            className="rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-          >
-            {newsLoading ? "Searching…" : "Search news triggers"}
-          </button>
-        </form>
-      </div>
+      <SimpleSearchForm
+        title="Trigger events (news)"
+        label="Search recent news"
+        placeholder={suggestedQuery ? `e.g. "raises funding" ${suggestedQuery}` : 'e.g. "raises funding" Lagos'}
+        helpText="Finds businesses in the news for funding, expansion, launches, or hiring — free, no account needed."
+        buttonLabel="Search news triggers"
+        loadingLabel="Searching…"
+        query={newsQuery}
+        setQuery={setNewsQuery}
+        loading={newsLoading}
+        error={newsError}
+        disabled={!newsQuery && !suggestedQuery}
+        onSubmit={handleNewsSearch}
+      />
+
+      <SimpleSearchForm
+        title="YouTube channels"
+        label="Search YouTube channels"
+        placeholder={suggestedQuery || "e.g. business coach"}
+        helpText="Finds channels matching your ICP and pulls any contact email published in their About section. Needs YOUTUBE_API_KEY."
+        buttonLabel="Search YouTube"
+        loadingLabel="Searching…"
+        query={youtubeQuery}
+        setQuery={setYoutubeQuery}
+        loading={youtubeLoading}
+        error={youtubeError}
+        disabled={!youtubeQuery && !suggestedQuery}
+        onSubmit={handleYoutubeSearch}
+      />
+
+      <SimpleSearchForm
+        title="Etsy sellers"
+        label="Search Etsy listings"
+        placeholder={suggestedQuery || "e.g. handmade candles"}
+        helpText="Finds Etsy shops selling matching products. No contact info available — Etsy keeps buyer-seller contact inside their own messaging. Needs ETSY_API_KEY."
+        buttonLabel="Search Etsy"
+        loadingLabel="Searching…"
+        query={etsyQuery}
+        setQuery={setEtsyQuery}
+        loading={etsyLoading}
+        error={etsyError}
+        disabled={!etsyQuery && !suggestedQuery}
+        onSubmit={handleEtsySearch}
+      />
 
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">Check a website</h2>
@@ -243,9 +341,9 @@ export function ProspectingPanel({
                     <p className="text-xs text-neutral-500">
                       {[p.category, p.address].filter(Boolean).join(" · ")}
                     </p>
-                    {(p.phone || p.website) && (
+                    {(p.phone || p.email || p.website) && (
                       <p className="mt-1 text-xs text-neutral-400">
-                        {[p.phone, p.website].filter(Boolean).join(" · ")}
+                        {[p.phone, p.email, p.website].filter(Boolean).join(" · ")}
                       </p>
                     )}
                     {p.sourceUrl && (

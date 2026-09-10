@@ -52,6 +52,8 @@ enum LeadChannel {
   referral
   api
   news
+  youtube
+  etsy
 }
 
 enum LeadStage {
