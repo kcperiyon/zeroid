@@ -92,3 +92,20 @@ export async function withInviteTokenScope<T>(
     return fn(tx);
   });
 }
+
+/**
+ * Scopes a transaction to one WhatsAppConnection by phoneNumberId — same
+ * chicken-and-egg shape as withInviteTokenScope: the WhatsApp webhook gets
+ * Meta's phone_number_id in the payload before it knows which business (or
+ * even which organization) owns that number, so there's no app.business_id
+ * to set yet. This is the only lookup app.phone_number_id authorizes.
+ */
+export async function withPhoneNumberIdScope<T>(
+  phoneNumberId: string,
+  fn: (tx: Tx) => Promise<T>
+): Promise<T> {
+  return db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.phone_number_id', ${phoneNumberId}, true)`;
+    return fn(tx);
+  });
+}

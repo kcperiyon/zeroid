@@ -218,6 +218,7 @@ model Business {
   referrals     Referral[]
   contentItems  ContentItem[]
   prospects     Prospect[]
+  whatsappConnection WhatsAppConnection?
 
   @@index([organizationId])
 }
@@ -312,8 +313,33 @@ model Prospect {
   @@index([businessId])
 }
 
-// Qualification factors (icpScore + the six below) are manually entered by a
-// rep for Phase 1 — there's no AI conversation yet to populate them. Each is
+// One real Meta WhatsApp Business number per business, talked to directly
+// via the Graph API -- not through ../platform-services' channels service,
+// which turned out to be hardcoded to Skynett's own orchestrator for every
+// resolve/reply call (see platform-services-project memory, 2026-09-18).
+// accessToken is a long-lived system-user token from the WABA this number
+// lives under. The webhook has no business/session context until it looks
+// this row up by phoneNumberId, hence the RLS self-lookup policy (same
+// pattern as Invite's token lookup). organizationId is denormalized here
+// (not just businessId) for the same reason LeadEvent denormalizes
+// businessId -- Business's own RLS policy needs app.organization_id set,
+// which the webhook doesn't have until this lookup returns it.
+model WhatsAppConnection {
+  id                 String   @id @default(cuid())
+  businessId         String   @unique
+  organizationId     String
+  phoneNumberId      String   @unique
+  wabaId             String
+  displayPhoneNumber String?
+  accessToken        String
+  createdAt          DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+}
+
+// Qualification factors (icpScore + the six below) can be entered manually
+// by a rep, or populated by the AI qualification conversation over
+// WhatsApp (src/app/api/webhooks/whatsapp/route.ts). Each is
 // 0-100 ("how strong is this factor"), and leadScore is the weighted average
 // per ScoringConfig.weights (see src/lib/scoring.ts). When the AI
 // qualification engine lands later, it fills these same fields instead of a

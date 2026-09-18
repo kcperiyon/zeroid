@@ -26,8 +26,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except static assets, Next internals, and the auth/invites API
+  // Everything except static assets, Next internals, the auth/invites API
   // routes (those enforce their own logic and would otherwise redirect-loop
-  // against themselves, or need to work with no session at all).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth|api/invites).*)"],
+  // against themselves, or need to work with no session at all), and
+  // api/webhooks (Meta calls these with no session cookie at all -- its own
+  // hub.verify_token handshake and payload signature are the real auth).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth|api/invites|api/webhooks).*)"],
 };
