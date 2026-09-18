@@ -492,6 +492,30 @@ on a real Meta number for a Zeroid business, same as before.
   autonomous prospecting, white-labelling, custom AI agents, enterprise
   controls (custom roles, SSO).
 
+**Owner review, 2026-09-18:** asked to pull organic content engine,
+prospecting, paid advertising, referral engine, appointment self-serve
+booking, team management, and AI Autopilot forward regardless of phase.
+Checked each: content engine, prospecting, referral engine, and team
+management were already built (see above / §11 build status) — no action
+needed. The remaining three were explicitly deferred by the owner after
+being asked directly, each for the same reason — no real credential/basis
+to build against yet:
+- **Paid advertising:** no Meta/Google Ads account with real billing
+  exists. Hold until one does — same discipline as every other
+  integration in this repo (Flutterwave, Anthropic, Places/YouTube/Etsy):
+  build against real credentials, not speculatively.
+- **Appointment self-serve booking:** no Google Calendar OAuth
+  credentials exist. A booking UI without real calendar sync would just
+  be a form that doesn't check availability — not worth building yet.
+- **AI Autopilot:** owner chose "hold off entirely" over a narrow
+  first-feature or broad rollout — every AI feature in Zeroid stays
+  Suggest-only (AI drafts, a human clicks Save/Send) until there's real
+  usage data showing where human review is pure friction, not a decision
+  to make speculatively.
+
+Don't re-raise these three as "missing" without a credential/decision
+having actually changed — this was a deliberate choice, not an oversight.
+
 ---
 
 ## 13. Decisions (owner delegated to Claude's recommendation, 2026-08-30)
