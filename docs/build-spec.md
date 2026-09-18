@@ -424,6 +424,54 @@ instead of a fabricated match percentage. **PDF/doc upload is explicitly
 not wired** — text and URL only for now, flagged in the UI itself. Item 7's WhatsApp inbound piece remains blocked
 on a real Meta number for a Zeroid business, same as before.
 
+### Build status (2026-09-18)
+
+Items 7 and 9 (WhatsApp) are built. A real number now exists (see §13
+decisions below), but wiring it through `../platform-services`' channels
+service turned out not to work: that service is hardcoded to call
+Skynett's own orchestrator (`ORCHESTRATOR_URL`, defaults to
+`http://orchestrator:8000`) for every single resolve/reply, across every
+channel it handles — it was never actually the neutral multi-tenant
+gateway §8 described, just Skynett's gateway that Zeroid happened to
+share infrastructure with. Rather than modify shared production code
+Skynett depends on, Zeroid owns its own webhook instead
+(`src/app/api/webhooks/whatsapp/route.ts`), talking straight to Meta's
+Graph API — still "official Cloud API only" per §2 item 7, just not
+shared code. `WhatsAppConnection` holds one number per business.
+
+Item 9's AI qualification chat replies to leads **directly, in real
+time** — confirmed explicitly with the owner as the one deliberate
+exception to the "AI Suggest, human executes" pattern everything else in
+Zeroid follows: a qualifying WhatsApp bot that waits for human approval
+on every message isn't a smaller version of the feature, it's a
+different, much weaker one. Auto-updating the lead's 7 scoring factors
+from the conversation is explicitly **not** in scope here — that stays
+the separate, on-demand `/qualify` action.
+
+**Live-verified end to end** with a signed test payload matching Meta's
+real webhook shape: a real lead got created from the payload, a real
+`qualification_chat` reply was generated (277 in / 45 out tokens, 2
+credits, correctly metered by the existing AI abstraction layer — first
+real use of that task type since it was defined), and the outbound send
+correctly reached Meta's real Graph API and got a real `Invalid OAuth
+access token` rejection for the deliberately-fake test token — proves the
+send path is correct, not just the surrounding logic.
+
+Two real gaps found and fixed during this build, not pre-existing:
+`src/proxy.ts`'s auth middleware was blocking the webhook outright since
+Meta calls it with no session cookie (fixed by excluding `api/webhooks`,
+same as `api/auth`); and the webhook initially had no payload-signature
+verification at all, which for an unauthenticated POST that costs AI
+credits and writes leads per call is a real security gap, not a nice-to-have
+— added `X-Hub-Signature-256` (HMAC-SHA256 over the raw body with the Meta
+App Secret) before calling this done.
+
+**Still needed for a real deployment:** a Meta App (App ID + App Secret)
+connected to the WABA — only the WABA and phone number exist so far, no
+Developer App, so no real webhook deliveries can arrive yet.
+`WHATSAPP_WEBHOOK_VERIFY_TOKEN` and `WHATSAPP_APP_SECRET` are set to
+locally-generated test values only.
+
 ---
 
 ## 12. Phase roadmap (unchanged in spirit from vision doc §50–52)

@@ -102,6 +102,13 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
   to live-test), and Etsy Open API v3 (find shops — built, needs
   `ETSY_API_KEY`; note Etsy exposes no seller email/phone through this API
   at all, results are shop name + URL only).
+- **WhatsApp lead capture:** direct Meta Graph API integration (not
+  through `../platform-services`, see below), `/businesses/[id]/whatsapp`
+  to connect a number, `/api/webhooks/whatsapp` for the actual inbound
+  handling — real signature-verified webhook, AI replies live in real
+  time (qualification_chat), live-verified with a signed test payload
+  end to end. Needs a real Meta App (App ID/Secret) to receive real
+  deliveries — not set up yet.
 
 ### Known limitations / what's genuinely blocked
 
@@ -111,11 +118,22 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
   `ETSY_API_KEY` aren't configured yet. See `.env.example` for how to get
   each one (all free/near-free at this volume). News triggers and
   tech-stack detection need no key and are already live-verified.
-- **WhatsApp lead capture is not built** — `../platform-services`'
-  extraction+migration is fully done and live (2026-09-02, real Skynett
-  traffic flows through it), but Zeroid's own consumer side needs a real
-  Meta WhatsApp Business number connected to a Zeroid business, which
-  doesn't exist yet — can't be fully verified end-to-end until one does.
+- **WhatsApp lead capture is built (2026-09-18), talking directly to
+  Meta's Graph API** — not through `../platform-services`, which turned
+  out to be hardcoded to Skynett's own orchestrator for every
+  resolve/reply call, not the neutral gateway it was designed to be (see
+  the platform-services-project memory). `/api/webhooks/whatsapp` verifies
+  Meta's `hub.challenge` handshake and `X-Hub-Signature-256` payload
+  signature, then has the AI reply directly in real time — the one
+  feature in Zeroid that's genuinely autopilot by design, confirmed with
+  the owner. Live-verified with a signed test payload: real lead created,
+  a real `qualification_chat` reply generated (first real use of that
+  task type), and the outbound send correctly reached Meta's real API and
+  got a real rejection for the deliberately-fake test token. A real Meta
+  App (App ID/Secret) connected to the WABA is still needed to actually
+  receive deliveries — only a WABA + phone number exist so far, no
+  Developer App. `WHATSAPP_WEBHOOK_VERIFY_TOKEN` and `WHATSAPP_APP_SECRET`
+  aren't configured for anything real yet.
 - **Licensed-data prospecting (Apollo/Clearbit/PDL) deliberately not
   built** — the 6 free/official channels above were built instead after
   an explicit cost discussion with the owner; don't add a paid
