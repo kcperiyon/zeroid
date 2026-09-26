@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     // inserting it, in the same transaction, so its RLS WITH CHECK passes.
     await tx.$executeRaw`SELECT set_config('app.business_id', ${created.id}, true)`;
     await tx.scoringConfig.create({
-      data: { businessId: created.id, weights: DEFAULT_SCORING_WEIGHTS },
+      data: { businessId: created.id, weights: { ...DEFAULT_SCORING_WEIGHTS } },
     });
 
     return created;

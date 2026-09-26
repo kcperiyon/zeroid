@@ -12,7 +12,7 @@ export function recordLeadEvent(
       businessId: args.businessId,
       leadId: args.leadId,
       type: args.type,
-      payload: args.payload ?? {},
+      payload: (args.payload ?? {}) as Prisma.InputJsonObject,
     },
   });
 }

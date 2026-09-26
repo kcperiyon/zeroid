@@ -21,16 +21,29 @@ export function creditsForResult(result: AiResult): number {
  * and a debit against the organization's AiCreditWallet — see build-spec §7's
  * withMetering(). If the call throws, nothing is logged and nothing is
  * charged (see build-spec §7: "If the call fails ... don't charge credits").
- * Enforcement (blocking calls once a wallet is depleted) is intentionally
- * not built yet — Phase 1 has no real billing to enforce against; this is
- * the ledger that later billing work will read.
+ * A call is refused up front when the wallet is empty (added 2026-09-26,
+ * before the app got a public URL: new organizations start at 0 credits, so
+ * without this anyone signing up could spend the platform's own Anthropic
+ * key). A call that starts with a positive balance may finish slightly
+ * negative -- cost is only known after the model responds.
  */
+export class InsufficientCreditsError extends Error {
+  constructor() {
+    super("You're out of AI credits. Buy more on the Billing page to keep using AI features.");
+  }
+}
+
 export async function meterAiCall(
   organizationId: string,
   businessId: string,
   task: string,
   run: () => Promise<AiResult>
 ): Promise<AiResult> {
+  const wallet = await withBusinessScope(organizationId, businessId, (tx) =>
+    tx.aiCreditWallet.findUnique({ where: { organizationId } })
+  );
+  if (!wallet || wallet.balance <= 0) throw new InsufficientCreditsError();
+
   const result = await run();
   const credits = creditsForResult(result);
 

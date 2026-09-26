@@ -82,4 +82,21 @@ describe("AI metering", () => {
     expect(after!.balance).toBe(before!.balance);
     expect(countAfter).toBe(countBefore);
   });
+
+  it("refuses the call without touching the provider when the wallet is empty", async () => {
+    let providerCalled = false;
+    PROVIDERS.claude = {
+      name: "claude",
+      generate: async () => {
+        providerCalled = true;
+        return { text: "x", model: "claude-haiku-4-5-20251001", tokensIn: 1, tokensOut: 1 };
+      },
+    };
+    await withOrgScope(org.id, (tx) => tx.aiCreditWallet.update({ where: { organizationId: org.id }, data: { balance: 0 } }));
+
+    await expect(
+      generate(org.id, business.id, "follow_up_draft", { system: "test", prompt: "test" })
+    ).rejects.toThrow("out of AI credits");
+    expect(providerCalled).toBe(false);
+  });
 });
