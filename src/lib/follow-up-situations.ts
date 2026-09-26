@@ -10,6 +10,7 @@ export const FOLLOW_UP_SITUATIONS = [
   { value: "not_ready", label: "Not ready", guidance: "They said now isn't the right time. Acknowledge that directly, ask (briefly) what would need to be true for it to be the right time, don't push a timeline on them." },
   { value: "comparing_alternatives", label: "Comparing alternatives", guidance: "They're evaluating other options. Be confident, not defensive or comparative about competitors — focus on this business's actual differentiators from what's already been told to the AI." },
   { value: "interested_but_busy", label: "Interested but busy", guidance: "They're interested but haven't had time. Keep this message very short and make responding easy — a yes/no question, not an essay." },
+  { value: "referral_ask", label: "Ask for a referral", guidance: "They've become a customer. Thank them genuinely first, then make one easy, low-pressure ask: whether they know someone else who'd benefit. Never offer rewards or incentives unless one is explicitly listed above." },
   { value: "no_response", label: "No response", guidance: "They've gone quiet. Keep it very short, one line, no guilt-tripping, easy to ignore without feeling bad, and leave the door open." },
 ] as const;
 

@@ -22,7 +22,8 @@ async function call(path: string, init: RequestInit) {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      // Multipart bodies need fetch to set their own boundary header.
+      ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       "X-Platform-Key": API_KEY!,
       ...init.headers,
     },
@@ -63,6 +64,21 @@ export async function ingestText(params: {
       business_id: params.businessId,
     }),
   });
+}
+
+export async function ingestFile(params: {
+  sourceId: string;
+  name: string;
+  businessId: string;
+  file: File;
+}) {
+  const form = new FormData();
+  form.append("file", params.file, params.file.name);
+  form.append("source_id", params.sourceId);
+  form.append("source_type", "document");
+  form.append("name", params.name);
+  form.append("business_id", params.businessId);
+  await call("/ingest", { method: "POST", body: form });
 }
 
 export async function ingestUrl(params: {

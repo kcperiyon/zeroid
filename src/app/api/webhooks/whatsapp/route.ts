@@ -174,12 +174,36 @@ export async function POST(request: Request) {
       maxTokens: 300,
     });
 
-    await sendWhatsAppMessage({
-      phoneNumberId: connection.phoneNumberId,
-      accessToken: connection.accessToken,
-      to: inbound.from,
-      text: result.text,
-    });
+    try {
+      await sendWhatsAppMessage({
+        phoneNumberId: connection.phoneNumberId,
+        accessToken: connection.accessToken,
+        to: inbound.from,
+        text: result.text,
+      });
+    } catch (sendError) {
+      // The AI already spent credits generating this reply -- keep it on the
+      // timeline and hand it to a human instead of losing it silently. The
+      // lead never saw it, so it is NOT recorded as a whatsapp_reply.
+      const message = sendError instanceof Error ? sendError.message : "Send failed.";
+      await withBusinessScope(organizationId, businessId, async (tx) => {
+        await recordLeadEvent(tx, {
+          businessId,
+          leadId: lead.id,
+          type: "whatsapp_send_failed",
+          payload: { text: result.text, error: message },
+        });
+        await tx.task.create({
+          data: {
+            businessId,
+            leadId: lead.id,
+            title: `WhatsApp reply failed to send to ${lead.name ?? lead.phone ?? "a lead"}`,
+            note: `Send error: ${message}\n\nThe AI's undelivered reply:\n${result.text}`,
+          },
+        });
+      });
+      throw sendError;
+    }
 
     await withBusinessScope(organizationId, businessId, (tx) =>
       recordLeadEvent(tx, { businessId, leadId: lead.id, type: "whatsapp_reply", payload: { text: result.text } })

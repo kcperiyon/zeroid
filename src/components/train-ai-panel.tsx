@@ -13,10 +13,11 @@ type KnowledgeSource = {
 
 export function TrainAiPanel({ businessId, sources }: { businessId: string; sources: KnowledgeSource[] }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"text" | "url">("text");
+  const [mode, setMode] = useState<"text" | "url" | "file">("text");
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -30,11 +31,19 @@ export function TrainAiPanel({ businessId, sources }: { businessId: string; sour
     setLoading(true);
     setError(null);
 
-    const res = await fetch(`/api/businesses/${businessId}/knowledge`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(mode === "text" ? { type: "text", title, text } : { type: "url", title, url }),
-    });
+    let res: Response;
+    if (mode === "file") {
+      const form = new FormData();
+      if (file) form.append("file", file);
+      if (title) form.append("title", title);
+      res = await fetch(`/api/businesses/${businessId}/knowledge/upload`, { method: "POST", body: form });
+    } else {
+      res = await fetch(`/api/businesses/${businessId}/knowledge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mode === "text" ? { type: "text", title, text } : { type: "url", title, url }),
+      });
+    }
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({ error: "Something went wrong." }));
@@ -43,7 +52,7 @@ export function TrainAiPanel({ businessId, sources }: { businessId: string; sour
       return;
     }
 
-    setTitle(""); setText(""); setUrl("");
+    setTitle(""); setText(""); setUrl(""); setFile(null);
     setLoading(false);
     router.refresh();
   }
@@ -108,19 +117,34 @@ export function TrainAiPanel({ businessId, sources }: { businessId: string; sour
           <label className="flex items-center gap-1.5">
             <input type="radio" checked={mode === "url"} onChange={() => setMode("url")} /> From a URL
           </label>
+          <label className="flex items-center gap-1.5">
+            <input type="radio" checked={mode === "file"} onChange={() => setMode("file")} /> Upload a file
+          </label>
         </div>
         <div className="space-y-1">
           <label htmlFor="knowledge-title" className="text-sm font-medium text-neutral-700">Title</label>
           <input
             id="knowledge-title"
-            required
+            required={mode !== "file"}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Pricing FAQ"
+            placeholder={mode === "file" ? "Optional — defaults to the file name" : "e.g. Pricing FAQ"}
             className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
           />
         </div>
-        {mode === "text" ? (
+        {mode === "file" ? (
+          <div className="space-y-1">
+            <label htmlFor="knowledge-file" className="text-sm font-medium text-neutral-700">File (PDF, DOCX, TXT, MD — up to 10 MB)</label>
+            <input
+              id="knowledge-file"
+              required
+              type="file"
+              accept=".pdf,.docx,.txt,.md"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="w-full text-sm"
+            />
+          </div>
+        ) : mode === "text" ? (
           <div className="space-y-1">
             <label htmlFor="knowledge-text" className="text-sm font-medium text-neutral-700">Text</label>
             <textarea
@@ -155,7 +179,6 @@ export function TrainAiPanel({ businessId, sources }: { businessId: string; sour
         >
           {loading ? "Training…" : "Train"}
         </button>
-        <p className="text-xs text-neutral-400">PDF/document upload isn&apos;t wired up yet — text and URLs only for now.</p>
       </form>
 
       <div>

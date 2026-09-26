@@ -106,6 +106,30 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         });
         await recordLeadEvent(tx, { businessId, leadId, type: "handoff_created" });
       }
+
+      // Referral trigger (build-spec §12): a won deal is the purchase event.
+      // Creates one reminder task a week out -- no AI call here (no surprise
+      // credit spend on a stage change); the rep drafts the ask on demand
+      // with the "Ask for a referral" follow-up situation. Once per lead,
+      // even if the stage flips won -> other -> won.
+      if (parsed.data.stage === "won") {
+        const already = await tx.leadEvent.findFirst({
+          where: { businessId, leadId, type: "referral_ask_scheduled" },
+        });
+        if (!already) {
+          await tx.task.create({
+            data: {
+              businessId,
+              leadId,
+              title: `Ask ${existing.name || existing.company || "this customer"} for a referral`,
+              note: 'Deal won. Open the lead and use the follow-up drafter with "Ask for a referral" to write it, then log any referral from the Referrals tab.',
+              dueAt: new Date(Date.now() + 7 * 86_400_000),
+              assignedToUserId: existing.assignedToUserId ?? undefined,
+            },
+          });
+          await recordLeadEvent(tx, { businessId, leadId, type: "referral_ask_scheduled" });
+        }
+      }
     }
     if (leadScore !== existing.leadScore) {
       await recordLeadEvent(tx, {
