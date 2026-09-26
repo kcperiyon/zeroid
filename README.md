@@ -76,9 +76,10 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
   platform-services-project memory's 2026-09-02 security-fix entry). Same
   page has a "test what it learned" retrieval panel so training is
   verified working, not just accepted. Also accepts PDF/DOCX/TXT/MD
-  uploads (2026-09-26, verified live) — but files over ~1 MB 413 until
-  `client_max_body_size` is raised in the nginx `/platform/knowledge/`
-  location on the VPS (found by bisecting: 900 KB ok, 2.6 MB rejected).
+  uploads (2026-09-26, verified live). nginx's 1 MB default was rejecting
+  larger files (found by bisecting: 900 KB ok, 2.6 MB got 413); raised to
+  12m on the `/platform/knowledge/` location the same day — the 413 is gone,
+  though a multi-MB document fully ingesting wasn't confirmed (slow to embed).
   Also: the shared knowledge collection itself reads 0 chunks — the old
   Skynett data appears gone; new writes and retrieval work.
 - **Follow-up sequences, referral trigger, insights (2026-09-26):** a
