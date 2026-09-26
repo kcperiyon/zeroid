@@ -424,6 +424,22 @@ instead of a fabricated match percentage. **PDF/doc upload is explicitly
 not wired** — text and URL only for now, flagged in the UI itself. Item 7's WhatsApp inbound piece remains blocked
 on a real Meta number for a Zeroid business, same as before.
 
+### Build status (2026-09-26)
+
+Built without any new credentials: follow-up sequence library (per-situation
+multi-step plans, AI-drafted, human-reviewed, scheduled as dated Tasks — no
+auto-send), a won-lead referral trigger, PDF/DOCX/TXT/MD upload for Train Your
+AI, failed-WhatsApp-send recording (event + Task instead of losing the AI's
+reply), and the buildable slice of Phase 3 — first-touch attribution and a
+smoothed-rates win-likelihood ranking (`src/lib/insights.ts`, unit-tested,
+refuses to predict under 20 closed leads). Deliberately not built: multi-touch
+attribution (no touchpoint history exists), revenue attribution (nothing
+creates Deal rows), paid ads / campaign creative (no ad account), sales
+intelligence (needs real cross-campaign data). Upload is capped at ~1 MB by
+nginx's default until `client_max_body_size` is raised on the VPS. Not live
+verified: AI sequence generation and the failed-send path (Anthropic credit
+ran out).
+
 ### Build status (2026-09-18)
 
 Items 7 and 9 (WhatsApp) are built. A real number now exists (see §13

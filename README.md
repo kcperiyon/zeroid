@@ -75,8 +75,23 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
   `wa.lagosbusinessgroup.com` (the service itself has no auth — see the
   platform-services-project memory's 2026-09-02 security-fix entry). Same
   page has a "test what it learned" retrieval panel so training is
-  verified working, not just accepted. PDF/doc upload is not wired —
-  text and URL only.
+  verified working, not just accepted. Also accepts PDF/DOCX/TXT/MD
+  uploads (2026-09-26, verified live) — but files over ~1 MB 413 until
+  `client_max_body_size` is raised in the nginx `/platform/knowledge/`
+  location on the VPS (found by bisecting: 900 KB ok, 2.6 MB rejected).
+  Also: the shared knowledge collection itself reads 0 chunks — the old
+  Skynett data appears gone; new writes and retrieval work.
+- **Follow-up sequences, referral trigger, insights (2026-09-26):** a
+  multi-step follow-up plan per situation, AI-drafted in one call,
+  reviewed, then scheduled as dated Tasks (nothing auto-sends). A lead
+  reaching "won" creates one referral-ask reminder task (once per lead,
+  no AI spend). `/businesses/[id]/insights`: first-touch attribution by
+  channel + a transparent smoothed-rates win-likelihood ranking that
+  refuses to predict below 20 closed leads. Honest limits: no
+  touchpoint history (so not multi-touch), and nothing creates Deal rows
+  so there's no revenue. AI sequence generation and the failed-WhatsApp-send
+  recording are typechecked but NOT live-verified — Anthropic credit ran
+  out again.
 - **Email:** `src/lib/email.ts` (Brevo, plain REST). `BREVO_API_KEY` is
   live. Sender is a placeholder — `kelechi@lagosbusinessgroup.com`,
   verified instantly since that domain's already authenticated in Brevo —
