@@ -9,6 +9,8 @@ later (not yet owned, don't reference it as live anywhere).
 **Status: Phase 1 complete except items blocked on `../platform-services`;
 Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kcperiyon/zeroid).
 
+**Live (2026-09-26):** https://zeroid.moneyvarsity.net — shared Contabo box, `/opt/zeroid`, PM2 `zeroid` on port 3020, nginx + Let's Encrypt. Server `.env` has only DB/session/webhook-verify values so far: no Anthropic/Brevo/knowledge/Meta keys yet, so AI, email and WhatsApp replies are not functional there. New orgs start with 0 AI credits (calls are refused).
+
 ### Built and verified (real browser walkthroughs + automated tests, not just written)
 
 - **Auth & multi-tenancy:** signup/login/logout, Organization →
