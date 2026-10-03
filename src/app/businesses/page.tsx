@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { withOrgScope } from "@/lib/tenant-db";
-import { LogoutButton } from "@/components/logout-button";
 import { CreateBusinessForm } from "@/components/create-business-form";
 
 export default async function BusinessesPage() {
@@ -17,18 +16,10 @@ export default async function BusinessesPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-10">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-neutral-900">Businesses</h1>
-          <p className="mt-1 text-sm text-neutral-500">Signed in as {user.email} · {user.role}</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/team" className="text-sm text-neutral-500 hover:text-neutral-900">Team</Link>
-          <Link href="/billing" className="text-sm text-neutral-500 hover:text-neutral-900">Billing</Link>
-          <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-900">Account</Link>
-          <LogoutButton />
-        </div>
+    <main className="mx-auto w-full max-w-4xl px-4 py-10">
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Businesses</h1>
+        <p className="mt-1 text-sm text-neutral-500">Signed in as {user.email} · {user.role}</p>
       </div>
 
       <div className="mb-6 space-y-3">

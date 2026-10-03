@@ -1,26 +1,67 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Zeroid brand: white surfaces + deep blue. The whole app was written against
+ * Tailwind's `neutral` scale, so the palette is re-pointed here to a
+ * blue-tinted navy scale instead of touching every component. `neutral-900`
+ * is the brand blue (primary buttons, headings), `neutral-800` its hover.
+ */
+@theme {
+  --color-neutral-50: #f5f8fe;
+  --color-neutral-100: #eaf0fb;
+  --color-neutral-200: #d8e2f4;
+  --color-neutral-300: #b9c9e6;
+  --color-neutral-400: #8398bf;
+  --color-neutral-500: #566b94;
+  --color-neutral-600: #3f5380;
+  --color-neutral-700: #2a3d68;
+  --color-neutral-800: #163f94;
+  --color-neutral-900: #0a2463;
+  --color-neutral-950: #061744;
+
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dbe7ff;
+  --color-brand-500: #2f6bff;
+  --color-brand-600: #1d54e0;
+  --color-brand-700: #163f94;
+  --color-brand-900: #0a2463;
+  --color-brand-950: #061744;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #f5f8fe;
+  color: #1c2c52;
+  font-family: var(--font-sans);
+}
+
+/* Consistent, visible keyboard focus in the brand colour. */
+:focus-visible {
+  outline: 2px solid #2f6bff;
+  outline-offset: 2px;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #2f6bff !important;
+  box-shadow: 0 0 0 3px rgb(47 107 255 / 0.15);
+}
+
+/* Cards (the app's white bordered panels) get a soft lift. */
+.rounded-lg.border.bg-white {
+  box-shadow: 0 1px 2px rgb(10 36 99 / 0.04), 0 4px 12px rgb(10 36 99 / 0.04);
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

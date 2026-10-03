@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getBusinessInOrg } from "@/lib/tenant-db";
+import { BusinessTabs } from "@/components/business-tabs";
 
 export default async function BusinessLayout({
   children,
@@ -32,25 +33,15 @@ export default async function BusinessLayout({
   ];
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-10">
+    <main className="mx-auto w-full max-w-4xl px-4 py-10">
       <Link href="/businesses" className="text-sm text-neutral-500 hover:text-neutral-900">← All businesses</Link>
 
       <div className="mt-4 mb-6">
-        <h1 className="text-xl font-semibold text-neutral-900">{business.name}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">{business.name}</h1>
         {business.industry && <p className="mt-1 text-sm text-neutral-500">{business.industry}</p>}
       </div>
 
-      <nav className="mb-6 flex gap-4 border-b border-neutral-200">
-        {tabs.map((tab) => (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className="pb-2 text-sm font-medium text-neutral-600 hover:text-neutral-900"
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
+      <BusinessTabs tabs={tabs} baseHref={`/businesses/${businessId}`} />
 
       {children}
     </main>

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AuthShell } from "@/components/auth-shell";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -36,10 +37,10 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-5 rounded-lg border border-neutral-200 bg-white p-8 shadow-sm">
+    <AuthShell>
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <h1 className="text-xl font-semibold text-neutral-900">Create your account</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Create your account</h1>
           <p className="mt-1 text-sm text-neutral-500">Sets up your organization on Zeroid.</p>
         </div>
 
@@ -105,6 +106,6 @@ export default function SignupPage() {
           Already have an account? <Link href="/login" className="text-neutral-900 underline">Sign in</Link>
         </p>
       </form>
-    </main>
+    </AuthShell>
   );
 }

@@ -26,7 +26,7 @@ export default async function TeamPage() {
   const canInvite = ["owner", "admin"].includes(user.role);
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-10">
+    <main className="mx-auto w-full max-w-4xl px-4 py-10">
       <Link href="/businesses" className="text-sm text-neutral-500 hover:text-neutral-900">← Businesses</Link>
 
       <h1 className="mt-4 mb-6 text-xl font-semibold text-neutral-900">Team</h1>
