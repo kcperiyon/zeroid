@@ -26,6 +26,7 @@ export default async function BusinessesPage() {
         <div className="flex items-center gap-4">
           <Link href="/team" className="text-sm text-neutral-500 hover:text-neutral-900">Team</Link>
           <Link href="/billing" className="text-sm text-neutral-500 hover:text-neutral-900">Billing</Link>
+          <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-900">Account</Link>
           <LogoutButton />
         </div>
       </div>
