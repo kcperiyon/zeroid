@@ -11,6 +11,8 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
 
 **Live (2026-09-26):** https://zeroid.moneyvarsity.net — shared Contabo box, `/opt/zeroid`, PM2 `zeroid` on port 3020, nginx + Let's Encrypt. Server `.env` has only DB/session/webhook-verify values so far: no Anthropic/Brevo/knowledge/Meta keys yet, so AI, email and WhatsApp replies are not functional there. New orgs start with 0 AI credits (calls are refused).
 
+**Added 2026-10-03:** white + deep-blue redesign; `Capture` tab (public hosted form, embeddable iframe, write-only webhook/API key at `/api/intake/<key>`); `Social` tab (Facebook Page + linked Instagram: DMs/comments become organic leads with a reply task, Lead Ads become paid leads — capture only, never replies; webhook `/api/webhooks/meta`, needs `WHATSAPP_APP_SECRET`); Instagram Business Discovery lookup on the Prospecting tab; every lead now has `medium` (organic/paid) + `campaign`, and Insights splits channels by it; automatic Gemini fallback when Anthropic is out of credit/down (`src/lib/ai/fallback.ts`, `GEMINI_API_KEY`, live-verified). The Meta-side calls (Page subscribe, Lead Ad fetch, Business Discovery, real payload shapes) follow Meta's docs but are NOT yet tested against a real Page.
+
 ### Built and verified (real browser walkthroughs + automated tests, not just written)
 
 - **Auth & multi-tenancy:** signup/login/logout, Organization →
