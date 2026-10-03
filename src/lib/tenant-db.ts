@@ -109,3 +109,33 @@ export async function withPhoneNumberIdScope<T>(
     return fn(tx);
   });
 }
+
+/**
+ * Scopes a transaction to one IntakeKey by its public key -- the lead-capture
+ * endpoint has no session, only the key in the URL, so this is the one lookup
+ * app.intake_key authorizes (same shape as withInviteTokenScope).
+ */
+export async function withIntakeKeyScope<T>(
+  publicKey: string,
+  fn: (tx: Tx) => Promise<T>
+): Promise<T> {
+  return db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.intake_key', ${publicKey}, true)`;
+    return fn(tx);
+  });
+}
+
+/**
+ * Scopes a transaction to one MetaConnection by Facebook Page id or Instagram
+ * account id -- Meta's webhook payload carries only that id, never our
+ * business id (same shape as withPhoneNumberIdScope).
+ */
+export async function withMetaAccountScope<T>(
+  accountId: string,
+  fn: (tx: Tx) => Promise<T>
+): Promise<T> {
+  return db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.meta_account_id', ${accountId}, true)`;
+    return fn(tx);
+  });
+}

@@ -15,14 +15,14 @@ export default async function InsightsPage({ params }: { params: Promise<{ id: s
   const rows = await withBusinessScope(user.organizationId, businessId, (tx) =>
     tx.lead.findMany({
       where: { businessId },
-      select: { id: true, name: true, company: true, stage: true, leadScore: true, source: { select: { channel: true } } },
+      select: { id: true, name: true, company: true, stage: true, leadScore: true, medium: true, source: { select: { channel: true } } },
     })
   );
 
   const leads: InsightLead[] = rows.map((l) => ({
     id: l.id,
     stage: l.stage,
-    channel: l.source?.channel ?? "manual",
+    channel: (l.source?.channel ?? "manual") + (l.medium === "paid" ? " · paid" : ""),
     leadScore: l.leadScore,
   }));
   const channels = attributionByChannel(leads);

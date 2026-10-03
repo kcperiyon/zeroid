@@ -22,7 +22,7 @@ export default async function LeadDetailPage({
   const lead = await withBusinessScope(user.organizationId, businessId, (tx) =>
     tx.lead.findFirst({
       where: { id: leadId, businessId },
-      include: { events: { orderBy: { createdAt: "desc" } } },
+      include: { events: { orderBy: { createdAt: "desc" } }, source: true },
     })
   );
   if (!lead) notFound();
@@ -39,6 +39,20 @@ export default async function LeadDetailPage({
         </h2>
         <p className="text-sm text-neutral-500">
           {[lead.company, lead.email, lead.phone].filter(Boolean).join(" · ") || "No contact details"}
+        </p>
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded-full bg-neutral-100 px-2.5 py-1 font-medium text-neutral-700">
+            {lead.source?.channel ?? "manual"}
+          </span>
+          <span
+            className={
+              "rounded-full px-2.5 py-1 font-medium " +
+              (lead.medium === "paid" ? "bg-brand-100 text-brand-700" : "bg-neutral-100 text-neutral-700")
+            }
+          >
+            {lead.medium}
+          </span>
+          {lead.campaign && <span className="text-neutral-500">Campaign: {lead.campaign}</span>}
         </p>
       </div>
 

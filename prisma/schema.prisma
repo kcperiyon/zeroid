@@ -56,6 +56,16 @@ enum LeadChannel {
   etsy
 }
 
+// How a lead arrived, independent of the channel it came through: "organic"
+// is everything not paid-for (prospecting, inbound DMs/comments, forms,
+// referrals); "paid" is injected from an ad (Lead Ads, ad-platform leads).
+// Lets Insights compare organic vs paid per channel without Zeroid managing
+// any ad account.
+enum LeadMedium {
+  organic
+  paid
+}
+
 enum LeadStage {
   new
   contacted
@@ -219,6 +229,8 @@ model Business {
   contentItems  ContentItem[]
   prospects     Prospect[]
   whatsappConnection WhatsAppConnection?
+  intakeKey     IntakeKey?
+  metaConnection MetaConnection?
 
   @@index([organizationId])
 }
@@ -337,6 +349,38 @@ model WhatsAppConnection {
   business Business @relation(fields: [businessId], references: [id])
 }
 
+// Public, write-only key for a business's lead-capture form / API. It can only
+// CREATE leads, so it is safe to embed in a web page (like a form ID). The
+// intake endpoint has no session, so it resolves the business from this row --
+// hence the app.intake_key RLS self-lookup (same shape as Invite/WhatsApp).
+model IntakeKey {
+  id             String   @id @default(cuid())
+  businessId     String   @unique
+  organizationId String
+  publicKey      String   @unique
+  createdAt      DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+}
+
+// One Facebook Page (and optionally its linked Instagram professional
+// account) per business, talked to directly via the Graph API with a Page
+// access token. The Meta webhook only carries the page/IG account id, so it
+// resolves the business through the app.meta_account_id RLS self-lookup.
+model MetaConnection {
+  id                 String   @id @default(cuid())
+  businessId         String   @unique
+  organizationId     String
+  pageId             String   @unique
+  pageName           String?
+  instagramAccountId String?  @unique
+  pageAccessToken    String
+  subscribed         Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+}
+
 // Qualification factors (icpScore + the six below) can be entered manually
 // by a rep, or populated by the AI qualification conversation over
 // WhatsApp (src/app/api/webhooks/whatsapp/route.ts). Each is
@@ -354,6 +398,8 @@ model Lead {
   company    String?
   contact    Json      @default("{}")
   stage      LeadStage @default(new)
+  medium     LeadMedium @default(organic)
+  campaign   String?
   assignedToUserId String?
 
   icpScore           Int?

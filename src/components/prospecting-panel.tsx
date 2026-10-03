@@ -107,6 +107,10 @@ export function ProspectingPanel({
   const [etsyLoading, setEtsyLoading] = useState(false);
   const [etsyError, setEtsyError] = useState<string | null>(null);
 
+  const [igQuery, setIgQuery] = useState("");
+  const [igLoading, setIgLoading] = useState(false);
+  const [igError, setIgError] = useState<string | null>(null);
+
   const selectedIcp = icpProfiles.find((p) => p.id === icpId);
   const suggestedQuery = selectedIcp
     ? [selectedIcp.attributes.industry, selectedIcp.attributes.location].filter(Boolean).join(" in ")
@@ -158,6 +162,31 @@ export function ProspectingPanel({
   async function handleEtsySearch(event: FormEvent) {
     event.preventDefault();
     await runChannelSearch("etsy-search", etsyQuery, setEtsyLoading, setEtsyError);
+  }
+
+  async function handleInstagramLookup(event: FormEvent) {
+    event.preventDefault();
+    setIgLoading(true);
+    setIgError(null);
+    const res = await fetch(`/api/businesses/${businessId}/prospects/instagram-search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usernames: igQuery }),
+    });
+    const body = await res.json().catch(() => ({ error: "Something went wrong." }));
+    if (!res.ok) {
+      setIgError(body.error ?? "Something went wrong.");
+    } else {
+      if (body.failed?.length) {
+        setIgError(
+          "Couldn't look up: " +
+            body.failed.map((f: { username: string; reason: string }) => `@${f.username} (${f.reason})`).join("; ")
+        );
+      }
+      setIgQuery("");
+      router.refresh();
+    }
+    setIgLoading(false);
   }
 
   async function handleCheckWebsite(event: FormEvent) {
@@ -294,6 +323,21 @@ export function ProspectingPanel({
         onSubmit={handleEtsySearch}
       />
 
+      <SimpleSearchForm
+        title="Instagram accounts"
+        label="Instagram usernames"
+        placeholder="e.g. @brandone, @brandtwo (up to 10)"
+        helpText="Instagram has no search, so enter accounts you already know of. Pulls the public bio, website, any email in the bio and follower count for business/creator accounts. Needs Instagram connected on the Social tab."
+        buttonLabel="Look up accounts"
+        loadingLabel="Looking up…"
+        query={igQuery}
+        setQuery={setIgQuery}
+        loading={igLoading}
+        error={igError}
+        disabled={!igQuery}
+        onSubmit={handleInstagramLookup}
+      />
+
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">Check a website</h2>
         <form onSubmit={handleCheckWebsite} className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
@@ -348,7 +392,7 @@ export function ProspectingPanel({
                     )}
                     {p.sourceUrl && (
                       <a href={p.sourceUrl} target="_blank" rel="noreferrer" className="mt-1 block text-xs text-neutral-400 underline">
-                        Source article
+                        Source
                       </a>
                     )}
                   </div>

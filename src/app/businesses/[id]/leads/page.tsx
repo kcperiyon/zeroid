@@ -23,7 +23,7 @@ export default async function LeadsPage({ params }: { params: Promise<{ id: stri
 
   const { leads, scoringConfig } = await withBusinessScope(user.organizationId, businessId, async (tx) => {
     const [leads, scoringConfig] = await Promise.all([
-      tx.lead.findMany({ where: { businessId }, orderBy: { createdAt: "desc" } }),
+      tx.lead.findMany({ where: { businessId }, include: { source: true }, orderBy: { createdAt: "desc" } }),
       tx.scoringConfig.findUnique({ where: { businessId } }),
     ]);
     return { leads, scoringConfig };
@@ -63,9 +63,15 @@ export default async function LeadsPage({ params }: { params: Promise<{ id: stri
               className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white p-4 hover:border-neutral-400"
             >
               <div>
-                <p className="font-medium text-neutral-900">{lead.name || lead.email || lead.phone || "Unnamed lead"}</p>
+                <p className="font-medium text-neutral-900">
+                  {lead.name || lead.email || lead.phone || (lead.source ? `${lead.source.name} contact` : "Unnamed lead")}
+                </p>
                 <p className="text-sm text-neutral-500">
                   {lead.company ? `${lead.company} · ` : ""}{lead.stage}
+                  {lead.source ? ` · ${lead.source.channel}` : ""}
+                  {lead.medium === "paid" && (
+                    <span className="ml-2 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">paid</span>
+                  )}
                 </p>
               </div>
               <span className={`rounded-full px-2 py-1 text-xs font-medium ${TEMPERATURE_STYLES[temperature]}`}>

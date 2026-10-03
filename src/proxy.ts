@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
 const PUBLIC_PATHS = ["/login", "/signup"];
-const PUBLIC_PREFIXES = ["/invite/"];
+const PUBLIC_PREFIXES = ["/invite/", "/f/"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -31,5 +31,5 @@ export const config = {
   // against themselves, or need to work with no session at all), and
   // api/webhooks (Meta calls these with no session cookie at all -- its own
   // hub.verify_token handshake and payload signature are the real auth).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth|api/invites|api/webhooks).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth|api/invites|api/webhooks|api/intake).*)"],
 };
