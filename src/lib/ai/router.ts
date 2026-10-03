@@ -1,12 +1,18 @@
 import type { AiProvider, AiTask, ModelPricing } from "./types";
 import { claudeProvider } from "./providers/claude";
+import { geminiProvider, GEMINI_MODEL } from "./providers/gemini";
 
 // Registry of provider implementations. OpenAI/Kimi adapters land here later
 // (build-spec §7/§8) without any call site changing — they just need to
 // implement AiProvider and get added to both maps below.
 export const PROVIDERS: Record<string, AiProvider> = {
   claude: claudeProvider,
+  gemini: geminiProvider,
 };
+
+// Backup used when the primary provider is down or out of credit (see
+// ./fallback.ts). Only active when GEMINI_API_KEY is set.
+export const FALLBACK_ROUTE = { provider: "gemini", model: GEMINI_MODEL };
 
 // Default routing per task — see docs/build-spec.md §7's table. Hardcoded
 // for Phase 1 (no admin UI to edit this yet); the shape is already
@@ -30,6 +36,12 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   "claude-opus-5": { usdPerKIn: 0.005, usdPerKOut: 0.025 },
   "claude-haiku-4-5-20251001": { usdPerKIn: 0.001, usdPerKOut: 0.005 },
   "claude-fable-5": { usdPerKIn: 0.01, usdPerKOut: 0.05 },
+  // Placeholder Gemini Flash rates (carried over from 2.5 Flash; the 3.8
+  // price was not checked) -- VERIFY against Google's pricing page. Present
+  // so fallback calls still debit customers' credits (at a much lower rate
+  // than Claude) instead of being silently free.
+  "gemini-3.8-flash": { usdPerKIn: 0.0003, usdPerKOut: 0.0025 },
+  "gemini-2.5-flash": { usdPerKIn: 0.0003, usdPerKOut: 0.0025 },
 };
 
 export function resolveProvider(task: AiTask): { provider: AiProvider; model: string } {

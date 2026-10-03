@@ -3,6 +3,7 @@
 
 import { resolveProvider } from "./router";
 import { meterAiCall } from "./metering";
+import { runWithFallback } from "./fallback";
 import type { AiResult, AiTask } from "./types";
 
 export type { AiTask, AiResult, GenerateInput } from "./types";
@@ -15,5 +16,5 @@ export async function generate(
   input: { system: string; prompt: string; maxTokens?: number }
 ): Promise<AiResult> {
   const { provider, model } = resolveProvider(task);
-  return meterAiCall(organizationId, businessId, task, () => provider.generate(input, model));
+  return meterAiCall(organizationId, businessId, task, () => runWithFallback({ provider, model }, input));
 }
