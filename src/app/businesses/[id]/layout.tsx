@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getBusinessInOrg } from "@/lib/tenant-db";
 import { BusinessTabs } from "@/components/business-tabs";
+import { RenameBusiness } from "@/components/rename-business";
 
 export default async function BusinessLayout({
   children,
@@ -41,6 +42,9 @@ export default async function BusinessLayout({
       <div className="mt-4 mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">{business.name}</h1>
         {business.industry && <p className="mt-1 text-sm text-neutral-500">{business.industry}</p>}
+        {["owner", "admin"].includes(user.role) && (
+          <RenameBusiness businessId={businessId} name={business.name} industry={business.industry} />
+        )}
       </div>
 
       <BusinessTabs tabs={tabs} baseHref={`/businesses/${businessId}`} />
