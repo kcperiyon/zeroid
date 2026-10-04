@@ -107,6 +107,7 @@ export function ProspectingPanel({
   const [etsyLoading, setEtsyLoading] = useState(false);
   const [etsyError, setEtsyError] = useState<string | null>(null);
 
+  const [notice, setNotice] = useState<string | null>(null);
   const [igQuery, setIgQuery] = useState("");
   const [igLoading, setIgLoading] = useState(false);
   const [igError, setIgError] = useState<string | null>(null);
@@ -218,6 +219,7 @@ export function ProspectingPanel({
   ) {
     setLoading(true);
     setError(null);
+    setNotice(null);
     const res = await fetch(`/api/businesses/${businessId}/prospects/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -229,6 +231,11 @@ export function ProspectingPanel({
       setLoading(false);
       return;
     }
+    const ok = await res.json().catch(() => null);
+    if (ok?.message) {
+      setNotice(ok.message);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
     setLoading(false);
     router.refresh();
   }
@@ -238,6 +245,14 @@ export function ProspectingPanel({
 
   return (
     <div className="space-y-6">
+      {notice && (
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-brand-100 bg-brand-50 p-3 text-sm text-neutral-800">
+          <p>{notice}</p>
+          <button onClick={() => setNotice(null)} className="shrink-0 text-xs font-medium text-neutral-500 hover:text-neutral-900">
+            Dismiss
+          </button>
+        </div>
+      )}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">Find prospects</h2>
         <form onSubmit={handleSearch} className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">

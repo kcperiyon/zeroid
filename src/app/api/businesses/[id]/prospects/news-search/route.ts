@@ -51,7 +51,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 
   if (items.length === 0) {
-    return NextResponse.json({ prospects: [] }, { status: 201 });
+    return NextResponse.json(
+      { prospects: [], message: "Google News returned no headlines for that search. Try broader or different wording." },
+      { status: 201 }
+    );
   }
 
   const prompt = buildPrompt([
@@ -111,5 +114,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return rows;
   });
 
-  return NextResponse.json({ prospects }, { status: 201 });
+  const message =
+    prospects.length > 0
+      ? `Scanned ${items.length} headlines and added ${prospects.length} business${prospects.length === 1 ? "" : "es"} to "New prospects" below.`
+      : `Scanned ${items.length} headlines, but none described a specific named business with a funding, expansion, launch or hiring event, so nothing was added. ` +
+        `Try wording like "raises funding Lagos" or "opens new branch Abuja", or name an industry.`;
+  return NextResponse.json({ prospects, message }, { status: 201 });
 }
