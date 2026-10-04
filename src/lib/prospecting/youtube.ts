@@ -9,7 +9,10 @@
 // client: confirm the response fields actually match the first time a real
 // YOUTUBE_API_KEY exists, before relying on this for real prospecting data.
 
-const API_KEY = process.env.YOUTUBE_API_KEY;
+// One Google Cloud API key can serve Places and YouTube when both APIs are
+// enabled on its project and allowed in its API restrictions, so fall back to
+// the Places key instead of requiring the same value twice.
+const API_KEY = process.env.YOUTUBE_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
 
 export function isYoutubeConfigured() {
   return Boolean(API_KEY);
