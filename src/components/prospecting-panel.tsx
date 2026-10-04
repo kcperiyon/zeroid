@@ -312,7 +312,7 @@ export function ProspectingPanel({
         title="YouTube channels"
         label="Search YouTube channels"
         placeholder={suggestedQuery || "e.g. business coach"}
-        helpText="Finds channels matching your ICP and pulls any contact email published in their About section. Needs YOUTUBE_API_KEY."
+        helpText="Finds channels matching your ICP and pulls any contact email published in their About section."
         buttonLabel="Search YouTube"
         loadingLabel="Searching…"
         query={youtubeQuery}

@@ -52,5 +52,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return rows;
   });
 
-  return NextResponse.json({ prospects }, { status: 201 });
+  const message =
+    prospects.length > 0
+      ? `Found ${prospects.length} shops and added them to "New prospects" below.`
+      : "No shops matched that search. Try different wording.";
+  return NextResponse.json({ prospects, message }, { status: 201 });
 }

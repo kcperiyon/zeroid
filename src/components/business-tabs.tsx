@@ -9,7 +9,7 @@ export function BusinessTabs({ tabs, baseHref }: { tabs: Tab[]; baseHref: string
   const pathname = usePathname();
 
   return (
-    <nav className="no-scrollbar mb-6 flex gap-0.5 overflow-x-auto border-b border-neutral-200">
+    <nav className="mb-6 flex flex-wrap gap-x-0.5 border-b border-neutral-200">
       {tabs.map((tab) => {
         // The first tab (Products) lives at the base path, so match it exactly;
         // every other tab owns its sub-path.

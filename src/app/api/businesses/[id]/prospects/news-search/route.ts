@@ -93,9 +93,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   const prospects = await withBusinessScope(user.organizationId, businessId, async (tx) => {
     const rows = [];
+    const seenCompanies = new Set<string>();
     for (const entry of extracted) {
       const item = items[entry.itemIndex];
       if (!item) continue;
+      // Several articles often cover the same company -- keep one prospect per company.
+      const companyKey = entry.companyName.trim().toLowerCase();
+      if (seenCompanies.has(companyKey)) continue;
+      seenCompanies.add(companyKey);
+      const existing = await tx.prospect.findFirst({
+        where: { businessId, channel: "news", name: { equals: entry.companyName.trim(), mode: "insensitive" } },
+      });
+      if (existing) continue;
       const externalId = item.link;
       const row = await tx.prospect.upsert({
         where: { businessId_channel_externalId: { businessId, channel: "news", externalId } },
