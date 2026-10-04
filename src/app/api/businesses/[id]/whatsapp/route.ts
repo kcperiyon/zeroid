@@ -4,11 +4,34 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 import { getBusinessInOrg, withBusinessScope } from "@/lib/tenant-db";
 
 const ConnectSchema = z.object({
-  phoneNumberId: z.string().min(1).max(60),
-  wabaId: z.string().min(1).max(60),
-  displayPhoneNumber: z.string().max(30).optional(),
-  accessToken: z.string().min(20).max(4000),
+  phoneNumberId: z.string().trim().min(1).max(60),
+  wabaId: z.string().trim().min(1).max(60),
+  displayPhoneNumber: z.string().trim().max(30).optional(),
+  accessToken: z.string().trim().min(20).max(4000),
 });
+
+const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION ?? "v21.0";
+
+/**
+ * Confirms the token really works for this phone number before it is saved --
+ * a token pasted together with another field, truncated, or from the wrong app
+ * would otherwise be stored and then fail silently on every message. Meta's
+ * error text can echo the token back, so it is redacted before it is returned.
+ */
+async function checkTokenWithMeta(phoneNumberId: string, accessToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(phoneNumberId)}?fields=display_phone_number,verified_name`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+    if (res.ok && !body?.error) return null;
+    const raw = body?.error?.message ?? `Meta returned status ${res.status}.`;
+    return raw.split(accessToken).join("[token]").replace(/EAA[A-Za-z0-9]{20,}/g, "[token]");
+  } catch {
+    return "Could not reach Meta to check the token. Try again.";
+  }
+}
 
 function maskToken(token: string) {
   return `••••${token.slice(-4)}`;
@@ -54,6 +77,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const parsed = ConnectSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid connection details." }, { status: 400 });
+  }
+
+  const tokenProblem = await checkTokenWithMeta(parsed.data.phoneNumberId, parsed.data.accessToken);
+  if (tokenProblem) {
+    return NextResponse.json(
+      {
+        error:
+          `Meta rejected that Phone number ID / token: ${tokenProblem} ` +
+          "Paste only the token (it starts with EAA) in the Access token box, and only the number ID in the Phone number ID box.",
+      },
+      { status: 400 }
+    );
   }
 
   try {

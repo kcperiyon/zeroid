@@ -38,7 +38,8 @@ export async function sendWhatsAppMessage(params: {
   }
   if (!res.ok) {
     const message = (body as { error?: { message?: string } } | null)?.error?.message ?? `WhatsApp send error (status ${res.status}).`;
-    throw new Error(message);
+    // Meta's "Malformed access token" error echoes the token; never let it reach logs, lead events or tasks.
+    throw new Error(message.replace(/EAA[A-Za-z0-9]{20,}/g, "[token]"));
   }
   return body;
 }
