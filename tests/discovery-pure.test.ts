@@ -45,6 +45,7 @@ describe("normalisation", () => {
     expect(cells).toHaveLength(9);
     expect(cells[0].south).toBeCloseTo(6.3);
     expect(Math.max(...cells.map((c) => c.north))).toBeCloseTo(6.6);
+    expect(gridCells({ south: 6.3, north: 6.5, west: 3.2, east: 3.4 }, 0.1, 100)).toHaveLength(4); // floating-point spans must not add a sliver row
     expect(gridCells({ south: 0, north: 10, west: 0, east: 10 }, 0.1, 100)).toBeNull();
     expect(gridCells({ south: 1, north: 1, west: 0, east: 1 })).toBeNull();
   });

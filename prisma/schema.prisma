@@ -341,6 +341,7 @@ model Prospect {
   discoveryJobId      String?
   enrichStatus        String    @default("none") // none | pending | running | done | failed | skipped
   enrichAttempts      Int       @default(0)
+  enrichStartedAt     DateTime?
   enrichedAt          DateTime?
   enrichError         String?
   researchNote        String?
@@ -402,6 +403,7 @@ model DiscoveryCell {
   attempts      Int       @default(0)
   found         Int       @default(0)
   error         String?
+  startedAt     DateTime?
   finishedAt    DateTime?
   createdAt     DateTime  @default(now())
 

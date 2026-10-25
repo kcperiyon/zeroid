@@ -49,8 +49,9 @@ export type Point = { south: number; west: number; north: number; east: number }
  */
 export function gridCells(box: Point, cellDeg = 0.1, maxCells = 100): Point[] | null {
   if (!(box.north > box.south) || !(box.east > box.west)) return null;
-  const rows = Math.max(1, Math.ceil((box.north - box.south) / cellDeg));
-  const cols = Math.max(1, Math.ceil((box.east - box.west) / cellDeg));
+  // The epsilon stops 0.2 / 0.1 = 2.0000000000000004 from becoming three rows.
+  const rows = Math.max(1, Math.ceil((box.north - box.south) / cellDeg - 1e-9));
+  const cols = Math.max(1, Math.ceil((box.east - box.west) / cellDeg - 1e-9));
   if (rows * cols > maxCells) return null;
   const h = (box.north - box.south) / rows;
   const w = (box.east - box.west) / cols;
