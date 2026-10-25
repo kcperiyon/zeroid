@@ -127,7 +127,7 @@ export function scoreEmail(i: ScoreInput): { confidence: number; reasons: string
   let cap = 95; // never claim certainty without a real delivery
 
   if (i.siteDomain && domain === i.siteDomain) { score += 8; reasons.push("Address is on the company's own domain."); }
-  else if (isFreemailDomain(domain)) { score -= 4; reasons.push("Free-mail address (common for small firms, but not company-owned)."); }
+  else if (isFreemailDomain(domain)) { score -= 1; reasons.push("Free-mail address — the normal case for a solo operator or small business, barely counted against it."); }
   else if (i.siteDomain) { score -= 8; reasons.push("Address is on a different domain from the website."); }
 
   if (i.hasPersonName && i.via !== "pattern") { score += 4; reasons.push("Tied to a named person."); }
