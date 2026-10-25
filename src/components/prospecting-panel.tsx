@@ -117,6 +117,23 @@ export function ProspectingPanel({
     ? [selectedIcp.attributes.industry, selectedIcp.attributes.location].filter(Boolean).join(" in ")
     : "";
 
+  async function handleBulkImport() {
+    setNotice(null);
+    const res = await fetch(`/api/businesses/${businessId}/prospects/import-bulk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ onlyWithEmail: true }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setNotice(
+      res.ok
+        ? `Imported ${body.imported} prospect${body.imported === 1 ? "" : "s"} with an email as leads. ${body.skippedNoEmail} had no usable email and ${body.skippedNoEmail === 1 ? "was" : "were"} left for you to review.`
+        : body.error ?? "Could not import."
+    );
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    router.refresh();
+  }
+
   async function handleSearch(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
@@ -388,7 +405,17 @@ export function ProspectingPanel({
 
       {newProspects.length > 0 && (
         <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">New prospects</h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">New prospects</h2>
+            {newProspects.some((p) => p.email) && (
+              <button
+                onClick={handleBulkImport}
+                className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Import all with an email as leads
+              </button>
+            )}
+          </div>
           <div className="space-y-2">
             {newProspects.map((p) => (
               <div key={p.id} className="rounded-lg border border-neutral-200 bg-white p-3">

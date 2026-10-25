@@ -9,16 +9,30 @@ const STAGES = ["new", "contacted", "engaged", "qualified", "hot", "appointment"
 
 type Preview = { count: number; sample: { name: string | null; company: string | null; email: string | null }[] };
 
-export function SegmentBuilder({ businessId }: { businessId: string }) {
+export type SegmentFilterValues = {
+  channels?: string[]; stages?: string[]; medium?: string; minScore?: number; maxScore?: number; companyContains?: string;
+};
+
+export function SegmentBuilder({
+  businessId,
+  segment,
+  onDone,
+}: {
+  businessId: string;
+  /** When given, the builder edits this segment instead of creating a new one. */
+  segment?: { id: string; name: string; filter: SegmentFilterValues };
+  onDone?: () => void;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [channels, setChannels] = useState<string[]>([]);
-  const [stages, setStages] = useState<string[]>([]);
-  const [medium, setMedium] = useState("");
-  const [minScore, setMinScore] = useState("");
-  const [maxScore, setMaxScore] = useState("");
-  const [company, setCompany] = useState("");
+  const editing = Boolean(segment);
+  const [open, setOpen] = useState(editing);
+  const [name, setName] = useState(segment?.name ?? "");
+  const [channels, setChannels] = useState<string[]>(segment?.filter.channels ?? []);
+  const [stages, setStages] = useState<string[]>(segment?.filter.stages ?? []);
+  const [medium, setMedium] = useState(segment?.filter.medium ?? "");
+  const [minScore, setMinScore] = useState(segment?.filter.minScore !== undefined ? String(segment.filter.minScore) : "");
+  const [maxScore, setMaxScore] = useState(segment?.filter.maxScore !== undefined ? String(segment.filter.maxScore) : "");
+  const [company, setCompany] = useState(segment?.filter.companyContains ?? "");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,12 +61,18 @@ export function SegmentBuilder({ businessId }: { businessId: string }) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await fetch(`/api/businesses/${businessId}/segments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, filter: filter() }) });
+    const res = await fetch(
+      editing ? `/api/businesses/${businessId}/segments/${segment!.id}` : `/api/businesses/${businessId}/segments`,
+      { method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, filter: filter() }) }
+    );
     setBusy(false);
     if (!res.ok) return setError((await res.json().catch(() => ({}))).error ?? "Could not save.");
-    setOpen(false);
-    setName("");
-    setPreview(null);
+    if (!editing) {
+      setOpen(false);
+      setName("");
+      setPreview(null);
+    }
+    onDone?.();
     router.refresh();
   }
 
@@ -104,8 +124,8 @@ export function SegmentBuilder({ businessId }: { businessId: string }) {
       {error && <Notice tone="error">{error}</Notice>}
       <div className="flex flex-wrap gap-2">
         <button type="button" className={ghostButtonClass} disabled={busy} onClick={runPreview}>Preview who matches</button>
-        <button className={buttonClass} disabled={busy}>Save segment</button>
-        <button type="button" className="rounded-md px-4 py-2.5 text-sm text-neutral-500 hover:bg-neutral-100" onClick={() => setOpen(false)}>Cancel</button>
+        <button className={buttonClass} disabled={busy}>{editing ? "Save changes" : "Save segment"}</button>
+        <button type="button" className="rounded-md px-4 py-2.5 text-sm text-neutral-500 hover:bg-neutral-100" onClick={() => (editing ? onDone?.() : setOpen(false))}>Cancel</button>
       </div>
     </form>
   );

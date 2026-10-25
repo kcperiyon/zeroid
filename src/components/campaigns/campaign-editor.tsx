@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClass, Card, Field, ghostButtonClass, inputClass, Notice, StatusBadge } from "./ui";
 
-type Step = { delayDays: number; subject: string; body: string; aiPersonalise: boolean };
+type Step = { delayDays: number; subject: string; subjectB: string; body: string; aiPersonalise: boolean };
 type EventRow = { id: string; type: string; to: string; at: string; payload: Record<string, unknown> };
+type StepStatRow = { position: number; variant: string | null; scheduled: number; sent: number; opened: number; clicked: number; replied: number; bounced: number; unsubscribed: number };
 type Props = {
   businessId: string;
   campaign: {
@@ -15,6 +16,7 @@ type Props = {
   sandboxed: boolean;
   steps: Step[];
   stats: { messages: Record<string, number>; events: Record<string, number> };
+  stepStats: StepStatRow[];
   events: EventRow[];
 };
 
@@ -33,7 +35,9 @@ const EVENT_LABEL: Record<string, string> = {
   replied: "Replied", unsubscribed: "Unsubscribed", complained: "Complaint", blocked: "Blocked",
 };
 
-export function CampaignEditor({ businessId, campaign, sandboxed, steps: initialSteps, stats, events }: Props) {
+const pct = (n: number, of: number) => (of > 0 ? `${Math.round((n / of) * 100)}%` : "–");
+
+export function CampaignEditor({ businessId, campaign, sandboxed, steps: initialSteps, stats, stepStats, events }: Props) {
   const router = useRouter();
   const base = `/api/businesses/${businessId}/campaigns/${campaign.id}`;
   const editable = campaign.status === "draft";
@@ -42,8 +46,17 @@ export function CampaignEditor({ businessId, campaign, sandboxed, steps: initial
   const [busy, setBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ subject: string; html: string; from: string; step: number } | null>(null);
   const [testTo, setTestTo] = useState("");
+  const [testStep, setTestStep] = useState(1);
 
   const patchStep = (i: number, p: Partial<Step>) => setSteps((s) => s.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const move = (i: number, dir: -1 | 1) =>
+    setSteps((s) => {
+      const j = i + dir;
+      if (j < 0 || j >= s.length) return s;
+      const next = [...s];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
 
   async function call(label: string, path: string, body?: unknown, method = "POST") {
     setBusy(label);
@@ -67,9 +80,10 @@ export function CampaignEditor({ businessId, campaign, sandboxed, steps: initial
     if (!ok) return setMsg({ tone: "error", text: data.error ?? "Could not start." });
     setMsg({
       tone: "ok",
-      text: data.resumed === false || data.scheduled !== undefined
-        ? `Started. ${data.scheduled} email${data.scheduled === 1 ? "" : "s"} scheduled · ${data.suppressed} suppressed · ${data.invalid} invalid address${data.invalid === 1 ? "" : "es"} · ${data.duplicate} duplicate.`
-        : "Resumed.",
+      text:
+        data.scheduled !== undefined && (data.scheduled > 0 || data.suppressed || data.invalid || data.duplicate)
+          ? `Started. ${data.scheduled} email${data.scheduled === 1 ? "" : "s"} scheduled · ${data.suppressed} suppressed · ${data.invalid} invalid address${data.invalid === 1 ? "" : "es"} · ${data.duplicate} duplicate.`
+          : "Resumed.",
     });
     router.refresh();
   }
@@ -80,6 +94,19 @@ export function CampaignEditor({ businessId, campaign, sandboxed, steps: initial
     router.refresh();
   }
 
+  async function duplicate() {
+    const { ok, data } = await call("duplicate", "/duplicate");
+    if (!ok) return setMsg({ tone: "error", text: data.error ?? "Could not duplicate." });
+    router.push(`/businesses/${businessId}/campaigns/${data.campaign.id}`);
+  }
+
+  async function remove() {
+    if (!confirm(`Delete "${campaign.name}" and all of its messages and results? This cannot be undone.`)) return;
+    const { ok, data } = await call("delete", "", undefined, "DELETE");
+    if (!ok) return setMsg({ tone: "error", text: data.error ?? "Could not delete." });
+    router.push(`/businesses/${businessId}/campaigns`);
+  }
+
   async function showPreview(step: number) {
     if (editable) await saveSteps();
     const { ok, data } = await call("preview", "/preview", { step });
@@ -87,9 +114,9 @@ export function CampaignEditor({ businessId, campaign, sandboxed, steps: initial
     setPreview({ subject: data.subject, html: data.html, from: data.from, step });
   }
 
-  async function testSend(step: number) {
+  async function testSend() {
     if (editable) await saveSteps();
-    const { ok, data } = await call("test", "/test-send", { to: testTo, step });
+    const { ok, data } = await call("test", "/test-send", { to: testTo, step: testStep });
     setMsg(ok ? { tone: "ok", text: `Test email sent to ${testTo} (${data.mode}).` } : { tone: "error", text: data.error ?? "Could not send the test." });
   }
 
@@ -99,6 +126,7 @@ export function CampaignEditor({ businessId, campaign, sandboxed, steps: initial
     ["Queued", m.scheduled ?? 0], ["Sent", m.sent ?? 0], ["Opened", e.opened ?? 0], ["Clicked", e.clicked ?? 0],
     ["Replied", e.replied ?? 0], ["Bounced", e.bounced ?? 0], ["Unsubscribed", e.unsubscribed ?? 0], ["Blocked/skipped", m.skipped ?? 0],
   ];
+  const hasAnyB = initialSteps.some((s) => s.subjectB);
 
   return (
     <div className="space-y-4">
@@ -107,7 +135,7 @@ export function CampaignEditor({ businessId, campaign, sandboxed, steps: initial
           <h2 className="text-xl font-semibold tracking-tight text-neutral-900">{campaign.name}</h2>
           <p className="mt-1 text-sm text-neutral-500">Segment: {campaign.segmentName} · From: {campaign.fromLabel}</p>
           <p className="text-xs text-neutral-400">
-            Sends {campaign.sendStartHour}:00–{campaign.sendEndHour}:00 {campaign.timezone}{campaign.weekdaysOnly ? ", weekdays" : ""}
+            Sends {campaign.sendStartHour}:00–{campaign.sendEndHour}:00 {campaign.timezone}{campaign.weekdaysOnly ? ", weekdays" : ""} — in the recipient&apos;s own timezone when it can be worked out
           </p>
         </div>
         <StatusBadge status={campaign.status} />
@@ -130,6 +158,10 @@ export function CampaignEditor({ businessId, campaign, sandboxed, steps: initial
         {campaign.status === "active" && (
           <button className={ghostButtonClass} disabled={busy !== null} onClick={pause}>{busy === "pause" ? "Pausing…" : "Pause campaign"}</button>
         )}
+        <button className={ghostButtonClass} disabled={busy !== null} onClick={duplicate}>Duplicate</button>
+        {campaign.status !== "active" && (
+          <button className="rounded-md px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50" disabled={busy !== null} onClick={remove}>Delete</button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -141,15 +173,50 @@ export function CampaignEditor({ businessId, campaign, sandboxed, steps: initial
         ))}
       </div>
 
+      {stepStats.length > 0 && (
+        <Card title="Results by step">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[34rem] text-left text-sm">
+              <thead className="text-xs uppercase text-neutral-500">
+                <tr>
+                  <th className="py-2 pr-3 font-medium">Step</th><th className="px-2 font-medium">Queued</th><th className="px-2 font-medium">Sent</th>
+                  <th className="px-2 font-medium">Opened</th><th className="px-2 font-medium">Clicked</th><th className="px-2 font-medium">Replied</th>
+                  <th className="px-2 font-medium">Bounced</th><th className="px-2 font-medium">Unsub.</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {stepStats.map((r) => (
+                  <tr key={`${r.position}-${r.variant}`}>
+                    <td className="py-2 pr-3 font-medium text-neutral-800">Step {r.position}{r.variant ? ` · subject ${r.variant}` : ""}</td>
+                    <td className="px-2">{r.scheduled}</td>
+                    <td className="px-2">{r.sent}</td>
+                    <td className="px-2">{r.opened} <span className="text-xs text-neutral-400">{pct(r.opened, r.sent)}</span></td>
+                    <td className="px-2">{r.clicked} <span className="text-xs text-neutral-400">{pct(r.clicked, r.sent)}</span></td>
+                    <td className="px-2">{r.replied} <span className="text-xs text-neutral-400">{pct(r.replied, r.sent)}</span></td>
+                    <td className="px-2">{r.bounced}</td>
+                    <td className="px-2">{r.unsubscribed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {hasAnyB && <p className="mt-2 text-xs text-neutral-400">Subjects A and B are shown separately. Open counts are approximate (image blocking, mail-app privacy features), so judge a winner by replies.</p>}
+        </Card>
+      )}
+
       <Card title="Email sequence">
-        {!editable && <p className="mb-3 text-sm text-neutral-500">The sequence is locked once a campaign has launched. You can still preview and test-send each step.</p>}
+        {!editable && <p className="mb-3 text-sm text-neutral-500">The sequence is locked once a campaign has launched. You can still preview and test-send each step, or duplicate the campaign to change it.</p>}
         <div className="space-y-3">
           {steps.map((s, i) => (
             <div key={i} className="rounded-lg border border-neutral-200 p-3 sm:p-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-neutral-800">Step {i + 1}</p>
-                {editable && steps.length > 1 && (
-                  <button className="text-xs font-medium text-red-600 hover:underline" onClick={() => setSteps((x) => x.filter((_, j) => j !== i))}>Remove</button>
+                {editable && (
+                  <span className="flex items-center gap-3 text-xs font-medium">
+                    <button className="text-neutral-500 hover:text-neutral-900 disabled:opacity-30" disabled={i === 0} onClick={() => move(i, -1)}>↑ Move up</button>
+                    <button className="text-neutral-500 hover:text-neutral-900 disabled:opacity-30" disabled={i === steps.length - 1} onClick={() => move(i, 1)}>↓ Move down</button>
+                    {steps.length > 1 && <button className="text-red-600 hover:underline" onClick={() => setSteps((x) => x.filter((_, j) => j !== i))}>Remove</button>}
+                  </span>
                 )}
               </div>
               {i > 0 && (
@@ -159,6 +226,9 @@ export function CampaignEditor({ businessId, campaign, sandboxed, steps: initial
               )}
               <div className="mt-2 space-y-2">
                 <Field label="Subject"><input disabled={!editable} className={inputClass} value={s.subject} onChange={(ev) => patchStep(i, { subject: ev.target.value })} /></Field>
+                <Field label="A/B test: a second subject line (optional)" hint="If filled in, half of the people get this one instead, and results are shown separately.">
+                  <input disabled={!editable} className={inputClass} value={s.subjectB} onChange={(ev) => patchStep(i, { subjectB: ev.target.value })} />
+                </Field>
                 <Field label="Message" hint="Use {{firstName}}, {{company}}, {{senderName}}. Lines in [[double brackets]] are prompts — rewrite them before launching.">
                   <textarea disabled={!editable} rows={7} className={inputClass} value={s.body} onChange={(ev) => patchStep(i, { body: ev.target.value })} />
                 </Field>
@@ -176,7 +246,7 @@ export function CampaignEditor({ businessId, campaign, sandboxed, steps: initial
         {editable && (
           <div className="mt-3 flex flex-wrap gap-2">
             {steps.length < 6 && (
-              <button className={ghostButtonClass} onClick={() => setSteps((x) => [...x, { delayDays: 4, subject: "", body: "", aiPersonalise: false }])}>+ Add step</button>
+              <button className={ghostButtonClass} onClick={() => setSteps((x) => [...x, { delayDays: 4, subject: "", subjectB: "", body: "", aiPersonalise: false }])}>+ Add step</button>
             )}
             <button className={buttonClass} disabled={busy !== null} onClick={saveSteps}>{busy === "save" ? "Saving…" : "Save sequence"}</button>
           </div>
@@ -186,7 +256,10 @@ export function CampaignEditor({ businessId, campaign, sandboxed, steps: initial
       <Card title="Send yourself a test">
         <div className="flex flex-col gap-2 sm:flex-row">
           <input type="email" className={inputClass} placeholder="your-test-inbox@example.com" value={testTo} onChange={(ev) => setTestTo(ev.target.value)} />
-          <button className={ghostButtonClass + " shrink-0"} disabled={busy !== null || !testTo} onClick={() => testSend(1)}>Send step 1 test</button>
+          <select className={inputClass + " sm:max-w-[9rem]"} value={testStep} onChange={(ev) => setTestStep(Number(ev.target.value))}>
+            {steps.map((_, i) => <option key={i} value={i + 1}>Step {i + 1}</option>)}
+          </select>
+          <button className={ghostButtonClass + " shrink-0"} disabled={busy !== null || !testTo} onClick={testSend}>Send test</button>
         </div>
         <p className="mt-2 text-xs text-neutral-400">Only addresses on the server&apos;s sandbox allow-list can receive tests. Links in a test email are inert.</p>
       </Card>

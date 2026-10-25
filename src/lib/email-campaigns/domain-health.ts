@@ -1,5 +1,5 @@
 import { createPublicKey } from "node:crypto";
-import { promises as dns } from "node:dns";
+import { Resolver as DnsResolver } from "node:dns/promises";
 
 /**
  * Checks the DNS records that decide whether mail from a sending domain reaches the inbox:
@@ -75,7 +75,8 @@ export async function checkDomainHealth(
   domain: string,
   opts: { selector?: string | null; privateKeyPem?: string | null; spfInclude?: string; resolver?: Resolver } = {}
 ): Promise<Check[]> {
-  const r: Resolver = opts.resolver ?? dns;
+  // Short timeouts, one try: a slow resolver must never hang the page.
+  const r: Resolver = opts.resolver ?? new DnsResolver({ timeout: 4000, tries: 1 });
   const d = domain.trim().toLowerCase();
   const checks: Check[] = [];
 

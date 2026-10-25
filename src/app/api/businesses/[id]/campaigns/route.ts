@@ -26,7 +26,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       include: { segment: { select: { name: true } }, identity: { select: { name: true, provider: true } } },
       orderBy: { createdAt: "desc" },
     });
-    return Promise.all(rows.map(async (c) => ({ ...c, stats: await campaignStats(tx, c.id) })));
+    const out = [];
+    for (const c of rows) out.push({ ...c, stats: await campaignStats(tx, c.id) });
+    return out;
   });
   return NextResponse.json({ campaigns });
 }
@@ -40,10 +42,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (d.sendEndHour <= d.sendStartHour) return NextResponse.json({ error: "The sending window must end after it starts." }, { status: 400 });
 
   const created = await withBusinessScope(auth.user.organizationId, auth.businessId, async (tx) => {
-    const [segment, identity] = await Promise.all([
-      tx.segment.findFirst({ where: { id: d.segmentId, businessId: auth.businessId } }),
-      tx.sendingIdentity.findFirst({ where: { id: d.identityId, businessId: auth.businessId } }),
-    ]);
+    const segment = await tx.segment.findFirst({ where: { id: d.segmentId, businessId: auth.businessId } });
+    const identity = await tx.sendingIdentity.findFirst({ where: { id: d.identityId, businessId: auth.businessId } });
     if (!segment || !identity) return null;
     const campaign = await tx.campaign.create({
       data: {

@@ -12,10 +12,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   const result = await withBusinessScope(auth.user.organizationId, auth.businessId, async (tx) => {
     const where = segmentWhere(auth.businessId, parsed.data);
-    const [count, sample] = await Promise.all([
-      tx.lead.count({ where }),
-      tx.lead.findMany({ where, select: { name: true, company: true, email: true }, take: 5, orderBy: { createdAt: "desc" } }),
-    ]);
+    const count = await tx.lead.count({ where });
+    const sample = await tx.lead.findMany({ where, select: { name: true, company: true, email: true }, take: 5, orderBy: { createdAt: "desc" } });
     return { count, sample };
   });
   return NextResponse.json(result);

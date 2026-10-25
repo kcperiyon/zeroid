@@ -42,15 +42,13 @@ export async function GET(_request: Request, context: Ctx) {
       },
     });
     if (!campaign) return null;
-    const [stats, events] = await Promise.all([
-      campaignStats(tx, campaignId),
-      tx.emailEvent.findMany({
-        where: { campaignId },
-        orderBy: { createdAt: "desc" },
-        take: 25,
-        include: { message: { select: { toEmail: true } } },
-      }),
-    ]);
+    const stats = await campaignStats(tx, campaignId);
+    const events = await tx.emailEvent.findMany({
+      where: { campaignId },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+      include: { message: { select: { toEmail: true } } },
+    });
     return { campaign, stats, events };
   });
   if (!data) return NextResponse.json({ error: "Campaign not found." }, { status: 404 });

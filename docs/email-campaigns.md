@@ -75,9 +75,25 @@ count as OK), and **refuses to start while any step still contains `[[double bra
 | `APP_BASE_URL` | public origin used in unsubscribe/tracking links |
 | `INBOUND_EMAIL_SECRET` | shared secret for `/api/inbound/email` |
 | `EMAIL_LINK_SECRET` | optional; falls back to `SESSION_SECRET` |
+| `SECRETS_KEY` | optional; key for encrypting SMTP/DKIM/IMAP secrets at rest (falls back to `SESSION_SECRET`; changing it makes stored secrets unreadable) |
 | `WORKER_TICK_MS`, `MX_TIMEOUT_MS` | optional tuning |
 
 Run the worker: `npm run worker` (PM2: `tsx --env-file=.env worker/index.ts`).
+
+## Gap features (added after the first deploy; not yet on the server)
+
+- **Reply capture without Postfix:** a sending identity can hold IMAP settings. The worker polls the
+  mailbox read-only (`imapLastUid` tracked, errors shown on the identity card) and feeds each new
+  message through the same inbound handler as `/api/inbound/email`. `scripts/postfix-pipe.sh` is the
+  alternative for an own mail server (exit 75 = Zeroid down, so the MTA retries).
+- **Domain health:** `GET .../identities/<id>/health` checks SPF, DKIM (and that the published key
+  matches the private key we sign with), DMARC and MX, shown as pass/warn/fail on the identity card.
+- **Time zones:** with no campaign time zone, each recipient's zone is inferred from phone prefix,
+  country and ccTLD; the send window is applied in that zone.
+- **A/B subject test:** a step may carry `subjectB`; recipients are split by a stable hash and per-step
+  and per-variant stats (sent, opened, clicked, replied) appear in the campaign editor.
+- **Management:** edit/delete identities (owner-only for going live or changing credentials), segments
+  (live size preview), campaign duplicate, suppression list view/add/remove, bulk prospect import.
 
 ## Honest limits
 
@@ -87,9 +103,11 @@ Run the worker: `npm run worker` (PM2: `tsx --env-file=.env worker/index.ts`).
   only against fakes (not a live SMTP server).
 - Inbound mail needs a delivery path (Postfix pipe or relay webhook → `/api/inbound/email`). With Brevo
   alone, replies go to the reply-to inbox and are **not** captured automatically.
-- SMTP password and DKIM key are stored in the database in plain text (same as WhatsApp tokens);
-  encrypt before taking other people's credentials.
+- SMTP/IMAP passwords and DKIM keys are now encrypted at rest (AES-256-GCM, `enc:v1:`); rows written
+  before that are upgraded when the worker starts. WhatsApp tokens are still plain text.
 - Open tracking is approximate (image blocking, Apple Mail privacy prefetch).
 - The unsubscribe link unsubscribes on GET (no confirmation click): a security scanner that prefetches
   links can unsubscribe a real recipient. Chosen so unsubscribes can never silently fail.
+- Domain health, IMAP polling and the SMTP/DKIM sender are verified only against fakes and local test
+  data (the laptop's DNS times out), not against real DNS, a real mailbox or a real SMTP server.
 - Phase 2 (large-scale discovery, own enrichment, per-address confidence) is not started.

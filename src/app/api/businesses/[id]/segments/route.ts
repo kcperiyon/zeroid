@@ -11,12 +11,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if ("error" in auth) return auth.error;
   const rows = await withBusinessScope(auth.user.organizationId, auth.businessId, async (tx) => {
     const segments = await tx.segment.findMany({ where: { businessId: auth.businessId }, orderBy: { createdAt: "asc" } });
-    return Promise.all(
-      segments.map(async (s) => ({
-        ...s,
-        size: await tx.lead.count({ where: segmentWhere(auth.businessId, SegmentFilterSchema.catch({}).parse(s.filter)) }),
-      }))
-    );
+    const out = [];
+    for (const s of segments) {
+      out.push({ ...s, size: await tx.lead.count({ where: segmentWhere(auth.businessId, SegmentFilterSchema.catch({}).parse(s.filter)) }) });
+    }
+    return out;
   });
   return NextResponse.json({ segments: rows });
 }
