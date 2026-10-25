@@ -13,7 +13,16 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = token ? await verifySessionToken(token) : null;
 
-  if (!session) {
+  // Neutron Brain's own-account access: a bearer token matching NEUTRON_BRAIN_API_KEY lets the
+  // request through to the route handler, which resolves it to the owner's own account via
+  // getCurrentUser() (src/lib/auth/current-user.ts) - this gate is just a prefilter, not the
+  // final authority, so a plain comparison here is fine; the real timing-safe check lives there.
+  const apiKey = process.env.NEUTRON_BRAIN_API_KEY;
+  const authHeader = request.headers.get("authorization");
+  const presentedKey = authHeader?.startsWith("Bearer ") ? authHeader.slice("Bearer ".length).trim() : null;
+  const viaApiKey = !!apiKey && !!presentedKey && presentedKey === apiKey;
+
+  if (!session && !viaApiKey) {
     if (pathname.startsWith("/api")) {
       return NextResponse.json({ error: "Not signed in." }, { status: 401 });
     }
