@@ -139,3 +139,32 @@ export async function withMetaAccountScope<T>(
     return fn(tx);
   });
 }
+
+/**
+ * Scopes a transaction to ONE campaign message, found by its unguessable token (unsubscribe page,
+ * tracking pixel, click redirect) or by the Message-ID we sent with (inbound replies and bounces).
+ * Those endpoints have no session, so the token / Message-ID is the authorization and opens only
+ * the row it names -- see the CampaignMessage RLS policy.
+ */
+export async function withMessageLookupScope<T>(
+  lookup: { token?: string; messageId?: string },
+  fn: (tx: Tx) => Promise<T>
+): Promise<T> {
+  return db.$transaction(async (tx) => {
+    if (lookup.token) await tx.$executeRaw`SELECT set_config('app.message_token', ${lookup.token}, true)`;
+    if (lookup.messageId) await tx.$executeRaw`SELECT set_config('app.message_id', ${lookup.messageId}, true)`;
+    return fn(tx);
+  });
+}
+
+/**
+ * Scopes a transaction to one business WITHOUT knowing its organization. Only for session-less
+ * endpoints (unsubscribe, tracking, inbound mail) that already resolved the business from an
+ * unguessable message token; every table they touch is policy-checked on businessId alone.
+ */
+export async function withBusinessOnlyScope<T>(businessId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.business_id', ${businessId}, true)`;
+    return fn(tx);
+  });
+}

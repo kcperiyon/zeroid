@@ -779,20 +779,22 @@ model Segment {
 }
 
 model Campaign {
-  id            String         @id @default(cuid())
-  businessId    String
-  name          String
-  objective     String?
-  status        CampaignStatus @default(draft)
-  segmentId     String
-  identityId    String
+  id             String         @id @default(cuid())
+  businessId     String
+  // Denormalised so session-less code (inbound replies) can bill AI work to the right wallet.
+  organizationId String
+  name           String
+  objective      String?
+  status         CampaignStatus @default(draft)
+  segmentId      String
+  identityId     String
   // Recipients are emailed inside this window (campaign timezone, or the lead own if known).
-  timezone      String         @default("UTC")
-  sendStartHour Int            @default(9)
-  sendEndHour   Int            @default(17)
-  weekdaysOnly  Boolean        @default(true)
-  startedAt     DateTime?
-  createdAt     DateTime       @default(now())
+  timezone       String         @default("UTC")
+  sendStartHour  Int            @default(9)
+  sendEndHour    Int            @default(17)
+  weekdaysOnly   Boolean        @default(true)
+  startedAt      DateTime?
+  createdAt      DateTime       @default(now())
 
   business Business          @relation(fields: [businessId], references: [id])
   segment  Segment           @relation(fields: [segmentId], references: [id])
