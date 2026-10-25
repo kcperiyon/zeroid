@@ -12,6 +12,8 @@ import { db } from "../src/lib/db";
 import { withOrgScope } from "../src/lib/tenant-db";
 import { processDueMessages } from "../src/lib/email-campaigns/engine";
 import { liveSendingEnabled, parseAllowList } from "../src/lib/email-campaigns/guard";
+import { pollBusinessMailboxes } from "../src/lib/email-campaigns/mailbox";
+import { upgradeIdentitySecrets } from "../src/lib/email-campaigns/upgrade-secrets";
 
 const TICK_MS = Number(process.env.WORKER_TICK_MS ?? 30_000);
 let running = false;
@@ -30,6 +32,9 @@ async function tick() {
       for (const business of businesses) {
         if (stopping) break;
         try {
+          // Capture replies / bounces first, so a reply stops the next step before it is sent.
+          const inbox = await pollBusinessMailboxes(org.id, business.id);
+          if (inbox.fetched > 0) log(`mailbox: ${inbox.fetched} new message(s), ${inbox.matched} matched (${inbox.replies} replies, ${inbox.bounces} bounces)`);
           const r = await processDueMessages(org.id, business.id);
           for (const k of Object.keys(totals) as (keyof typeof totals)[]) totals[k] += r[k];
         } catch (error) {
@@ -52,6 +57,12 @@ async function main() {
     `zeroid-worker started. Tick every ${TICK_MS / 1000}s. ` +
       `Sandbox allow-list: ${allow} address(es). Live sending: ${liveSendingEnabled() ? "ENABLED" : "disabled (sandbox only)"}.`
   );
+  try {
+    const n = await upgradeIdentitySecrets();
+    if (n > 0) log(`encrypted stored credentials on ${n} sending identit${n === 1 ? "y" : "ies"}.`);
+  } catch (error) {
+    console.error("could not upgrade stored credentials:", error);
+  }
   const timer = setInterval(() => void tick(), TICK_MS);
   void tick();
 

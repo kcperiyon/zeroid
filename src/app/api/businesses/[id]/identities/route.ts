@@ -1,34 +1,7 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { withBusinessScope } from "@/lib/tenant-db";
 import { authorizeBusiness, CAMPAIGN_ROLES } from "@/lib/api-auth";
-import { looksLikeEmail } from "@/lib/email-campaigns/suppression";
-
-const emailField = z.string().trim().toLowerCase().refine(looksLikeEmail, "Enter a valid email address.");
-
-const CreateSchema = z.object({
-  name: z.string().trim().min(1).max(80),
-  provider: z.enum(["brevo_shared", "smtp"]),
-  fromEmail: emailField,
-  fromName: z.string().trim().min(1).max(80),
-  replyToEmail: emailField.optional().or(z.literal("").transform(() => undefined)),
-  physicalAddress: z.string().trim().min(8, "A real postal address is required (it appears in every email).").max(300),
-  smtpHost: z.string().trim().max(200).optional(),
-  smtpPort: z.number().int().min(1).max(65535).optional(),
-  smtpSecure: z.boolean().optional(),
-  smtpUser: z.string().trim().max(200).optional(),
-  smtpPass: z.string().max(500).optional(),
-  dkimDomain: z.string().trim().max(200).optional(),
-  dkimSelector: z.string().trim().max(100).optional(),
-  dkimPrivateKey: z.string().max(5000).optional(),
-  dailyCap: z.number().int().min(1).max(5000).optional(),
-});
-
-/** Never send secrets back to the browser. */
-export const publicIdentity = <T extends { smtpPass: string | null; dkimPrivateKey: string | null }>(i: T) => {
-  const { smtpPass, dkimPrivateKey, ...rest } = i;
-  return { ...rest, hasSmtpPassword: Boolean(smtpPass), hasDkimKey: Boolean(dkimPrivateKey) };
-};
+import { IdentityCreateSchema, publicIdentity, sealIdentitySecrets } from "@/lib/email-campaigns/identity-schema";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const auth = await authorizeBusiness(context, CAMPAIGN_ROLES);
@@ -42,7 +15,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const auth = await authorizeBusiness(context, ["owner", "admin"]);
   if ("error" in auth) return auth.error;
-  const parsed = CreateSchema.safeParse(await request.json().catch(() => null));
+  const parsed = IdentityCreateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid details." }, { status: 400 });
   const d = parsed.data;
   if (d.provider === "smtp" && !d.smtpHost) return NextResponse.json({ error: "SMTP identities need a server (host)." }, { status: 400 });
@@ -61,13 +34,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         smtpPort: d.smtpPort,
         smtpSecure: d.smtpSecure ?? false,
         smtpUser: d.smtpUser,
-        smtpPass: d.smtpPass,
         dkimDomain: d.dkimDomain,
         dkimSelector: d.dkimSelector,
-        dkimPrivateKey: d.dkimPrivateKey,
+        imapHost: d.imapHost,
+        imapPort: d.imapPort,
+        imapSecure: d.imapSecure ?? true,
+        imapUser: d.imapUser,
+        imapFolder: d.imapFolder || "INBOX",
+        ...sealIdentitySecrets(d),
         dailyCap: d.dailyCap ?? 20,
+        perDomainHourlyCap: d.perDomainHourlyCap ?? 5,
         warmupStartedAt: new Date(),
-        sandboxOnly: true, // always starts sandboxed; see the identity PATCH route to change
+        sandboxOnly: true, // always starts sandboxed
       },
     })
   );

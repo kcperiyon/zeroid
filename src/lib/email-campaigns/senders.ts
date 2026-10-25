@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { assertSendAllowed } from "./guard";
+import { openSecret } from "@/lib/secrets";
 
 /**
  * Pluggable senders. Each one calls assertSendAllowed() immediately before touching the network,
@@ -80,10 +81,10 @@ export const smtpSender: EmailSender = {
       host: identity.smtpHost,
       port: identity.smtpPort ?? (identity.smtpSecure ? 465 : 587),
       secure: Boolean(identity.smtpSecure),
-      auth: identity.smtpUser ? { user: identity.smtpUser, pass: identity.smtpPass ?? "" } : undefined,
+      auth: identity.smtpUser ? { user: identity.smtpUser, pass: openSecret(identity.smtpPass) ?? "" } : undefined,
       dkim:
         identity.dkimDomain && identity.dkimSelector && identity.dkimPrivateKey
-          ? { domainName: identity.dkimDomain, keySelector: identity.dkimSelector, privateKey: identity.dkimPrivateKey }
+          ? { domainName: identity.dkimDomain, keySelector: identity.dkimSelector, privateKey: openSecret(identity.dkimPrivateKey) ?? "" }
           : undefined,
     });
     const info = await transport.sendMail({

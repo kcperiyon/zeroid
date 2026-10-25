@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { withBusinessScope } from "@/lib/tenant-db";
 import { generate } from "@/lib/ai";
@@ -11,6 +11,7 @@ import { findSuppression, looksLikeEmail, normaliseEmail } from "./suppression";
 import { parseSegmentFilter, segmentWhere } from "./segments";
 import { buildMessage, firstNameOf } from "./template";
 import { PLACEHOLDER_MARK } from "./defaults";
+import { inferTimezone } from "./timezone-infer";
 
 type Tx = Prisma.TransactionClient;
 
@@ -31,17 +32,23 @@ const MAX_RECIPIENTS = 5000;
 const STOP_EVENTS = ["replied", "unsubscribed", "bounced", "complained"] as const;
 
 const newToken = () => randomBytes(18).toString("base64url");
+
+/** Stable 50/50 A/B assignment per (lead, step): the same lead always gets the same variant. */
+export function pickVariant(leadId: string, stepId: string, hasB: boolean): "A" | "B" | null {
+  if (!hasB) return null;
+  const h = createHash("sha256").update(`${leadId}|${stepId}`).digest();
+  return h[0] % 2 === 0 ? "A" : "B";
+}
 const jitterMs = (maxMinutes: number) => Math.floor(Math.random() * maxMinutes * 60_000);
 const baseUrlOf = (deps: EngineDeps) => (deps.baseUrl ?? process.env.APP_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
-function leadWindow(campaign: { timezone: string; sendStartHour: number; sendEndHour: number; weekdaysOnly: boolean }, leadContact: unknown): SendWindow {
-  const tz = (leadContact as { timezone?: unknown } | null)?.timezone;
-  return {
-    timezone: typeof tz === "string" && isValidTimezone(tz) ? tz : isValidTimezone(campaign.timezone) ? campaign.timezone : "UTC",
-    startHour: campaign.sendStartHour,
-    endHour: campaign.sendEndHour,
-    weekdaysOnly: campaign.weekdaysOnly,
-  };
+function leadWindow(
+  campaign: { timezone: string; sendStartHour: number; sendEndHour: number; weekdaysOnly: boolean },
+  lead: { contact?: unknown; phone?: string | null; email?: string | null }
+): SendWindow {
+  // The recipient own working hours when we can tell where they are; otherwise the campaign timezone.
+  const tz = inferTimezone(lead) ?? (isValidTimezone(campaign.timezone) ? campaign.timezone : "UTC");
+  return { timezone: tz, startHour: campaign.sendStartHour, endHour: campaign.sendEndHour, weekdaysOnly: campaign.weekdaysOnly };
 }
 
 export async function recordEmailEvent(
@@ -101,7 +108,7 @@ export async function launchCampaign(
 
     const leads = await tx.lead.findMany({
       where: segmentWhere(businessId, parseSegmentFilter(campaign.segment.filter)),
-      select: { id: true, email: true, contact: true },
+      select: { id: true, email: true, phone: true, contact: true },
       orderBy: { createdAt: "asc" },
       take: MAX_RECIPIENTS,
     });
@@ -148,13 +155,14 @@ export async function launchCampaign(
       result.invalid++;
       continue;
     }
-    const window = leadWindow(campaign, lead.contact);
+    const window = leadWindow(campaign, lead);
     rows.push({
       businessId,
       campaignId,
       leadId: lead.id,
       stepId: steps[0].id,
       toEmail: email,
+      variant: pickVariant(lead.id, steps[0].id, Boolean(steps[0].subjectB)),
       token: newToken(),
       status: "scheduled",
       scheduledFor: nextAllowedTime(new Date(now.getTime() + jitterMs(30)), window),
@@ -302,7 +310,7 @@ async function processOne(
     return "rescheduled" as const;
   };
 
-  const window = leadWindow(campaign, message.lead.contact);
+  const window = leadWindow(campaign, message.lead);
   if (!isInsideWindow(now, window)) return reschedule(nextAllowedTime(now, window), true);
   if (sentToDomain >= identity.perDomainHourlyCap) return reschedule(new Date(now.getTime() + 30 * 60_000 + jitterMs(30)), true);
 
@@ -324,7 +332,7 @@ async function processOne(
     });
   }
   const built = buildMessage({
-    subjectTemplate: message.step.subject,
+    subjectTemplate: message.variant === "B" && message.step.subjectB ? message.step.subjectB : message.step.subject,
     bodyTemplate: message.step.body,
     vars,
     token: message.token,
@@ -371,6 +379,7 @@ async function processOne(
               leadId: message.leadId,
               stepId: next.id,
               toEmail: message.toEmail,
+              variant: pickVariant(message.leadId, next.id, Boolean(next.subjectB)),
               token: newToken(),
               status: "scheduled",
               scheduledFor: nextAllowedTime(due, window),
@@ -406,16 +415,57 @@ async function processOne(
 // ------------------------------------------------------------------------------------------
 
 export async function campaignStats(tx: Tx, campaignId: string) {
-  const [byStatus, events] = await Promise.all([
-    tx.campaignMessage.groupBy({ by: ["status"], where: { campaignId }, _count: true }),
-    tx.emailEvent.groupBy({ by: ["type"], where: { campaignId }, _count: { messageId: true } }),
-  ]);
+  // Sequential on purpose: queries on one transaction connection must not overlap.
+  const byStatus = await tx.campaignMessage.groupBy({ by: ["status"], where: { campaignId }, _count: true });
+  const types = await tx.emailEvent.groupBy({ by: ["type"], where: { campaignId } });
   // Distinct messages per event type (a message opened 5 times counts once).
   const distinct: Record<string, number> = {};
-  for (const e of events) {
-    distinct[e.type] = (
-      await tx.emailEvent.findMany({ where: { campaignId, type: e.type }, distinct: ["messageId"], select: { messageId: true } })
-    ).length;
+  for (const t of types) {
+    distinct[t.type] = (await tx.emailEvent.findMany({ where: { campaignId, type: t.type }, distinct: ["messageId"], select: { messageId: true } })).length;
   }
-  return { messages: Object.fromEntries(byStatus.map((s) => [s.status, s._count])), events: distinct };
+  return { messages: Object.fromEntries(byStatus.map((x) => [x.status, x._count])), events: distinct };
+}
+
+export type StepStatRow = {
+  position: number;
+  variant: string | null;
+  scheduled: number;
+  sent: number;
+  opened: number;
+  clicked: number;
+  replied: number;
+  bounced: number;
+  unsubscribed: number;
+};
+
+/** Per-step (and per A/B variant) funnel for the campaign page. Counts distinct messages. */
+export async function stepStats(tx: Tx, campaignId: string): Promise<StepStatRow[]> {
+  const rows = await tx.$queryRaw<
+    { position: number; variant: string | null; scheduled: bigint; sent: bigint; opened: bigint; clicked: bigint; replied: bigint; bounced: bigint; unsubscribed: bigint }[]
+  >`
+    SELECT st.position, m.variant,
+      count(DISTINCT m.id) FILTER (WHERE m.status = 'scheduled') AS scheduled,
+      count(DISTINCT m.id) FILTER (WHERE m.status = 'sent') AS sent,
+      count(DISTINCT m.id) FILTER (WHERE e.type = 'opened') AS opened,
+      count(DISTINCT m.id) FILTER (WHERE e.type = 'clicked') AS clicked,
+      count(DISTINCT m.id) FILTER (WHERE e.type = 'replied') AS replied,
+      count(DISTINCT m.id) FILTER (WHERE e.type = 'bounced') AS bounced,
+      count(DISTINCT m.id) FILTER (WHERE e.type = 'unsubscribed') AS unsubscribed
+    FROM "CampaignMessage" m
+    JOIN "SequenceStep" st ON st.id = m."stepId"
+    LEFT JOIN "EmailEvent" e ON e."messageId" = m.id
+    WHERE m."campaignId" = ${campaignId}
+    GROUP BY st.position, m.variant
+    ORDER BY st.position, m.variant NULLS FIRST`;
+  return rows.map((r) => ({
+    position: Number(r.position),
+    variant: r.variant,
+    scheduled: Number(r.scheduled),
+    sent: Number(r.sent),
+    opened: Number(r.opened),
+    clicked: Number(r.clicked),
+    replied: Number(r.replied),
+    bounced: Number(r.bounced),
+    unsubscribed: Number(r.unsubscribed),
+  }));
 }

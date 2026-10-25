@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getBusinessInOrg, withBusinessScope } from "@/lib/tenant-db";
-import { recordLeadEvent } from "@/lib/lead-events";
+import { importProspectAsLead } from "@/lib/prospect-import";
 
 const ActionSchema = z.object({ action: z.enum(["import", "dismiss"]) });
 
@@ -36,32 +36,7 @@ export async function PATCH(
       return tx.prospect.update({ where: { id: prospectId }, data: { status: "dismissed" } });
     }
 
-    let source = await tx.leadSource.findFirst({ where: { businessId, channel: prospect.channel } });
-    if (!source) {
-      source = await tx.leadSource.create({
-        data: { businessId, channel: prospect.channel, name: "Prospecting" },
-      });
-    }
-
-    const lead = await tx.lead.create({
-      data: {
-        businessId,
-        sourceId: source.id,
-        name: prospect.name,
-        email: prospect.email,
-        phone: prospect.phone,
-        company: prospect.name,
-        contact: { address: prospect.address, website: prospect.website, category: prospect.category },
-      },
-    });
-    await recordLeadEvent(tx, {
-      businessId,
-      leadId: lead.id,
-      type: "lead_created",
-      payload: { source: "prospecting", channel: prospect.channel },
-    });
-
-    return tx.prospect.update({ where: { id: prospectId }, data: { status: "imported", leadId: lead.id } });
+    return importProspectAsLead(tx, businessId, prospectId);
   });
 
   if (!result) return NextResponse.json({ error: "Prospect not found." }, { status: 404 });

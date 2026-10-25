@@ -749,6 +749,17 @@ model SendingIdentity {
   dkimDomain         String?
   dkimSelector       String?
   dkimPrivateKey     String?
+  // Mailbox we READ replies and bounces from (IMAP). Optional; works with any provider.
+  imapHost           String?
+  imapPort           Int?
+  imapSecure         Boolean          @default(true)
+  imapUser           String?
+  imapPass           String?
+  imapFolder         String           @default("INBOX")
+  imapLastCheckAt    DateTime?
+  // Highest message UID already processed, so each message is looked at exactly once (mailbox is read-only to us).
+  imapLastUid        Int?
+  imapLastError      String?
   dailyCap           Int              @default(20)
   perDomainHourlyCap Int              @default(5)
   warmupStartedAt    DateTime?
@@ -825,6 +836,8 @@ model SequenceStep {
   // Days to wait after the previous step was sent (0 for the first step).
   delayDays     Int     @default(0)
   subject       String
+  // Optional second subject line: A/B split, decided per lead and recorded on the message.
+  subjectB      String?
   // Plain-text template with {{firstName}}, {{company}}, {{senderName}} placeholders.
   body          String
   aiPersonalise Boolean @default(false)
@@ -843,6 +856,8 @@ model CampaignMessage {
   leadId       String
   stepId       String
   toEmail      String
+  // "A" or "B" when the step has an A/B subject test.
+  variant      String?
   // Unguessable per-message token used in the unsubscribe link, tracking pixel and reply address.
   token        String        @unique
   status       MessageStatus @default(scheduled)
