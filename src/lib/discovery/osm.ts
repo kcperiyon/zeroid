@@ -87,12 +87,18 @@ export function parseOverpass(body: { elements?: OsmElement[] }, industry: Indus
 export class RateLimited extends Error {}
 
 export async function searchOverpass(industry: Industry, box: Point, fetchFn: FetchLike = fetch): Promise<Candidate[]> {
-  const res = await fetchFn(OVERPASS_URL, {
-    method: "POST",
-    headers: { "User-Agent": USER_AGENT, "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
-    body: new URLSearchParams({ data: buildOverpassQuery(industry, box) }).toString(),
-    signal: AbortSignal.timeout(40_000),
-  });
+  let res: Response;
+  try {
+    res = await fetchFn(OVERPASS_URL, {
+      method: "POST",
+      headers: { "User-Agent": USER_AGENT, "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+      body: new URLSearchParams({ data: buildOverpassQuery(industry, box) }).toString(),
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch (e) {
+    // A timeout or dropped connection says nothing about the query itself: try again later.
+    throw new RateLimited(`Overpass did not answer (${(e as Error).message}); will retry.`);
+  }
   if ([429, 502, 503, 504].includes(res.status)) throw new RateLimited(`Overpass is busy (${res.status}); will retry.`);
   if (!res.ok) throw new Error(`Overpass returned ${res.status}.`);
   const text = await res.text();

@@ -93,6 +93,9 @@ describe("Overpass errors", () => {
     }
     await expect(searchOverpass(ind, box, async () => new Response("<html>overloaded</html>", { status: 200 }))).rejects.toBeInstanceOf(RateLimited);
     await expect(searchOverpass(ind, box, async () => new Response("bad query", { status: 400 }))).rejects.not.toBeInstanceOf(RateLimited);
+    // A timeout or dropped connection is retryable too (seen live from the server).
+    await expect(searchOverpass(ind, box, async () => { throw new DOMException("The operation was aborted due to timeout", "TimeoutError"); })).rejects.toBeInstanceOf(RateLimited);
+    await expect(searchOverpass(ind, box, async () => { throw new TypeError("fetch failed"); })).rejects.toBeInstanceOf(RateLimited);
   });
 });
 
