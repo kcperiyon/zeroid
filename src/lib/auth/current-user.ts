@@ -1,7 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
-import { getMembership } from "@/lib/tenant-db";
+import { getMembership, getMembershipsForUser } from "@/lib/tenant-db";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
 function safeEqual(a: string, b: string): boolean {
@@ -31,7 +31,12 @@ async function getUserFromApiKey() {
   if (!user) return null;
   // Resolve the owner's actual org the normal way (first membership) rather than trusting an
   // env var for organizationId too - one less thing that can silently drift out of sync.
-  const membership = await db.orgMembership.findFirst({ where: { userId: user.id } });
+  // Must go through the RLS-scoped helper (same one login uses) - a plain unscoped Prisma
+  // call here silently returns nothing, since app.user_id/app.organization_id are never set
+  // outside a scope wrapper. This bit tonight: the key, email and header all matched, but
+  // this exact unscoped call was quietly filtered to zero rows by OrgMembership's own RLS policy.
+  const memberships = await getMembershipsForUser(user.id);
+  const membership = memberships[0];
   if (!membership) return null;
 
   return {
