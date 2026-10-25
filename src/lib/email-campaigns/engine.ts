@@ -10,6 +10,7 @@ import { SENDERS, type EmailSender, type SenderIdentity } from "./senders";
 import { findSuppression, looksLikeEmail, normaliseEmail } from "./suppression";
 import { parseSegmentFilter, segmentWhere } from "./segments";
 import { buildMessage, firstNameOf } from "./template";
+import { PLACEHOLDER_MARK } from "./defaults";
 
 type Tx = Prisma.TransactionClient;
 
@@ -83,6 +84,9 @@ export async function launchCampaign(
     if (steps.length === 0) throw new CampaignError("Add at least one email step to the sequence first.");
     for (const s of steps) {
       if (!s.subject.trim() || !s.body.trim()) throw new CampaignError(`Step ${s.position} needs a subject and a body.`);
+      if (PLACEHOLDER_MARK.test(s.subject) || PLACEHOLDER_MARK.test(s.body)) {
+        throw new CampaignError(`Step ${s.position} still has template text in [[double brackets]]. Rewrite it before launching.`);
+      }
     }
     const id = campaign.identity;
     if (!id.active) throw new CampaignError("The sending identity is switched off.");
