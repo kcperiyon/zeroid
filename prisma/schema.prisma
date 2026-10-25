@@ -143,13 +143,13 @@ model Organization {
   slug      String   @unique
   createdAt DateTime @default(now())
 
-  memberships    OrgMembership[]
-  businesses     Business[]
-  subscription   Subscription?
-  creditWallet   AiCreditWallet?
+  memberships     OrgMembership[]
+  businesses      Business[]
+  subscription    Subscription?
+  creditWallet    AiCreditWallet?
   creditPurchases CreditPurchase[]
-  auditLogs      AuditLog[]
-  invites        Invite[]
+  auditLogs       AuditLog[]
+  invites         Invite[]
 }
 
 model User {
@@ -213,24 +213,32 @@ model Business {
   settings       Json     @default("{}")
   createdAt      DateTime @default(now())
 
-  organization  Organization    @relation(fields: [organizationId], references: [id])
-  products      Product[]
-  icpProfiles   IcpProfile[]
-  scoringConfig ScoringConfig?
-  leadSources   LeadSource[]
-  leads         Lead[]
-  deals         Deal[]
-  instructions  AiInstruction[]
-  knowledge     KnowledgeSource[]
-  aiUsageLogs   AiUsageLog[]
-  tasks         Task[]
-  appointments  Appointment[]
-  referrals     Referral[]
-  contentItems  ContentItem[]
-  prospects     Prospect[]
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  products           Product[]
+  icpProfiles        IcpProfile[]
+  scoringConfig      ScoringConfig?
+  leadSources        LeadSource[]
+  leads              Lead[]
+  deals              Deal[]
+  instructions       AiInstruction[]
+  knowledge          KnowledgeSource[]
+  aiUsageLogs        AiUsageLog[]
+  tasks              Task[]
+  appointments       Appointment[]
+  referrals          Referral[]
+  contentItems       ContentItem[]
+  prospects          Prospect[]
   whatsappConnection WhatsAppConnection?
-  intakeKey     IntakeKey?
-  metaConnection MetaConnection?
+  intakeKey          IntakeKey?
+  sendingIdentities  SendingIdentity[]
+  segments           Segment[]
+  campaigns          Campaign[]
+  sequences          Sequence[]
+  sequenceSteps      SequenceStep[]
+  campaignMessages   CampaignMessage[]
+  suppressions       Suppression[]
+  emailEvents        EmailEvent[]
+  metaConnection     MetaConnection?
 
   @@index([organizationId])
 }
@@ -389,39 +397,40 @@ model MetaConnection {
 // qualification engine lands later, it fills these same fields instead of a
 // human — the CRM/scoring code downstream doesn't need to change.
 model Lead {
-  id         String    @id @default(cuid())
-  businessId String
-  sourceId   String?
-  name       String?
-  email      String?
-  phone      String?
-  company    String?
-  contact    Json      @default("{}")
-  stage      LeadStage @default(new)
-  medium     LeadMedium @default(organic)
-  campaign   String?
+  id               String     @id @default(cuid())
+  businessId       String
+  sourceId         String?
+  name             String?
+  email            String?
+  phone            String?
+  company          String?
+  contact          Json       @default("{}")
+  stage            LeadStage  @default(new)
+  medium           LeadMedium @default(organic)
+  campaign         String?
   assignedToUserId String?
 
-  icpScore           Int?
-  problemSeverity    Int?
-  purchaseIntent     Int?
-  budgetFit          Int?
-  urgency            Int?
-  engagement         Int?
-  decisionAuthority  Int?
-  leadScore          Int?
+  icpScore          Int?
+  problemSeverity   Int?
+  purchaseIntent    Int?
+  budgetFit         Int?
+  urgency           Int?
+  engagement        Int?
+  decisionAuthority Int?
+  leadScore         Int?
 
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  business     Business      @relation(fields: [businessId], references: [id])
-  source       LeadSource?   @relation(fields: [sourceId], references: [id])
-  events       LeadEvent[]
-  deals        Deal[]
-  tasks        Task[]
-  appointments Appointment[]
-  referrals    Referral[]    @relation("ReferrerLead")
-  prospect     Prospect?
+  business         Business          @relation(fields: [businessId], references: [id])
+  source           LeadSource?       @relation(fields: [sourceId], references: [id])
+  events           LeadEvent[]
+  deals            Deal[]
+  tasks            Task[]
+  appointments     Appointment[]
+  referrals        Referral[]        @relation("ReferrerLead")
+  prospect         Prospect?
+  campaignMessages CampaignMessage[]
 
   @@index([businessId])
   @@index([businessId, stage])
@@ -487,14 +496,14 @@ model Task {
 // not pushed to an external calendar. externalCalendarEventId is reserved
 // for when that integration lands, so this doesn't need a schema change then.
 model Appointment {
-  id                     String            @id @default(cuid())
-  businessId             String
-  leadId                 String
-  startAt                DateTime
-  status                 AppointmentStatus @default(scheduled)
-  notes                  String?
+  id                      String            @id @default(cuid())
+  businessId              String
+  leadId                  String
+  startAt                 DateTime
+  status                  AppointmentStatus @default(scheduled)
+  notes                   String?
   externalCalendarEventId String?
-  createdAt              DateTime          @default(now())
+  createdAt               DateTime          @default(now())
 
   business Business @relation(fields: [businessId], references: [id])
   lead     Lead     @relation(fields: [leadId], references: [id])
@@ -507,13 +516,13 @@ model Appointment {
 // (via LeadChannel.referral) once/if they actually reach out — this row
 // just tracks the ask and its outcome.
 model Referral {
-  id             String         @id @default(cuid())
-  businessId     String
-  referrerLeadId String
-  referredName   String
+  id              String         @id @default(cuid())
+  businessId      String
+  referrerLeadId  String
+  referredName    String
   referredContact String?
-  status         ReferralStatus @default(pending)
-  createdAt      DateTime       @default(now())
+  status          ReferralStatus @default(pending)
+  createdAt       DateTime       @default(now())
 
   business     Business @relation(fields: [businessId], references: [id])
   referrerLead Lead     @relation("ReferrerLead", fields: [referrerLeadId], references: [id])
@@ -560,14 +569,14 @@ model ContentItem {
 }
 
 model AiInstruction {
-  id         String               @id @default(cuid())
+  id         String              @id @default(cuid())
   businessId String
   name       String
   content    String
-  priority   Int                  @default(0)
-  status     AiInstructionStatus  @default(active)
-  createdAt  DateTime             @default(now())
-  updatedAt  DateTime             @updatedAt
+  priority   Int                 @default(0)
+  status     AiInstructionStatus @default(active)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
 
   business Business @relation(fields: [businessId], references: [id])
 
@@ -590,15 +599,15 @@ model KnowledgeSource {
 }
 
 model Subscription {
-  id                     String              @id @default(cuid())
-  organizationId         String              @unique
-  plan                   SubscriptionPlan    @default(solo)
-  status                 SubscriptionStatus  @default(trialing)
-  provider               PaymentProvider     @default(flutterwave)
+  id                     String             @id @default(cuid())
+  organizationId         String             @unique
+  plan                   SubscriptionPlan   @default(solo)
+  status                 SubscriptionStatus @default(trialing)
+  provider               PaymentProvider    @default(flutterwave)
   providerCustomerId     String?
   providerSubscriptionId String?
   currentPeriodEnd       DateTime?
-  createdAt              DateTime            @default(now())
+  createdAt              DateTime           @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id])
 }
@@ -670,4 +679,218 @@ model AuditLog {
   actor        User?        @relation(fields: [actorUserId], references: [id])
 
   @@index([organizationId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// B2B email campaigns. Mirrors Skynett Business -> Campaign -> Segment ->
+// Sequence -> Messages structure. Every table carries businessId and the same
+// RLS pattern as the rest of the schema; CampaignMessage additionally has
+// narrow self-lookups (by token / Message-ID) because the unsubscribe page,
+// tracking pixel and inbound-mail endpoint have no session.
+// ---------------------------------------------------------------------------
+
+enum CampaignStatus {
+  draft
+  active
+  paused
+  completed
+}
+
+enum IdentityProvider {
+  brevo_shared // the shared Brevo account (Flux9, Moneyvarsity...) -- SANDBOX ONLY, enforced in code
+  smtp // our own MTA or any SMTP relay, DKIM-signed by the app
+}
+
+enum MessageStatus {
+  scheduled
+  sending
+  sent
+  bounced
+  failed
+  skipped // suppressed / blocked by a safeguard / invalid address
+  cancelled // reply, unsubscribe or campaign stopped before this step went out
+}
+
+enum EmailEventType {
+  sent
+  delivered
+  bounced
+  opened
+  clicked
+  replied
+  unsubscribed
+  complained
+  blocked
+}
+
+enum SuppressionReason {
+  unsubscribe
+  hard_bounce
+  complaint
+  manual
+  global_optout
+}
+
+model SendingIdentity {
+  id                 String           @id @default(cuid())
+  businessId         String
+  name               String
+  provider           IdentityProvider @default(brevo_shared)
+  fromEmail          String
+  fromName           String
+  replyToEmail       String?
+  // CAN-SPAM / GDPR-style requirement: every email carries a physical postal address.
+  physicalAddress    String
+  smtpHost           String?
+  smtpPort           Int?
+  smtpSecure         Boolean          @default(false)
+  smtpUser           String?
+  smtpPass           String?
+  dkimDomain         String?
+  dkimSelector       String?
+  dkimPrivateKey     String?
+  dailyCap           Int              @default(20)
+  perDomainHourlyCap Int              @default(5)
+  warmupStartedAt    DateTime?
+  // New identities are sandbox-only until an owner deliberately turns it off, and
+  // a brevo_shared identity can never leave sandbox (see src/lib/email-campaigns/guard.ts).
+  sandboxOnly        Boolean          @default(true)
+  active             Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+
+  business  Business   @relation(fields: [businessId], references: [id])
+  campaigns Campaign[]
+
+  @@index([businessId])
+}
+
+model Segment {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  // Saved filter over leads: { channels?, stages?, medium?, minScore?, maxScore?, createdAfter?, createdBefore? ... }
+  filter     Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  business  Business   @relation(fields: [businessId], references: [id])
+  campaigns Campaign[]
+
+  @@index([businessId])
+}
+
+model Campaign {
+  id            String         @id @default(cuid())
+  businessId    String
+  name          String
+  objective     String?
+  status        CampaignStatus @default(draft)
+  segmentId     String
+  identityId    String
+  // Recipients are emailed inside this window (campaign timezone, or the lead own if known).
+  timezone      String         @default("UTC")
+  sendStartHour Int            @default(9)
+  sendEndHour   Int            @default(17)
+  weekdaysOnly  Boolean        @default(true)
+  startedAt     DateTime?
+  createdAt     DateTime       @default(now())
+
+  business Business          @relation(fields: [businessId], references: [id])
+  segment  Segment           @relation(fields: [segmentId], references: [id])
+  identity SendingIdentity   @relation(fields: [identityId], references: [id])
+  sequence Sequence?
+  messages CampaignMessage[]
+
+  @@index([businessId, status])
+}
+
+model Sequence {
+  id         String   @id @default(cuid())
+  businessId String
+  campaignId String   @unique
+  name       String
+  createdAt  DateTime @default(now())
+
+  business Business       @relation(fields: [businessId], references: [id])
+  campaign Campaign       @relation(fields: [campaignId], references: [id])
+  steps    SequenceStep[]
+}
+
+model SequenceStep {
+  id            String  @id @default(cuid())
+  businessId    String
+  sequenceId    String
+  position      Int
+  // Days to wait after the previous step was sent (0 for the first step).
+  delayDays     Int     @default(0)
+  subject       String
+  // Plain-text template with {{firstName}}, {{company}}, {{senderName}} placeholders.
+  body          String
+  aiPersonalise Boolean @default(false)
+
+  business Business          @relation(fields: [businessId], references: [id])
+  sequence Sequence          @relation(fields: [sequenceId], references: [id])
+  messages CampaignMessage[]
+
+  @@unique([sequenceId, position])
+}
+
+model CampaignMessage {
+  id           String        @id @default(cuid())
+  businessId   String
+  campaignId   String
+  leadId       String
+  stepId       String
+  toEmail      String
+  // Unguessable per-message token used in the unsubscribe link, tracking pixel and reply address.
+  token        String        @unique
+  status       MessageStatus @default(scheduled)
+  scheduledFor DateTime
+  sentAt       DateTime?
+  // The SMTP Message-ID we sent with, used to match replies and bounces back to this row.
+  messageId    String?       @unique
+  subject      String?
+  bodyHtml     String?
+  error        String?
+  attempts     Int           @default(0)
+  createdAt    DateTime      @default(now())
+
+  business Business     @relation(fields: [businessId], references: [id])
+  campaign Campaign     @relation(fields: [campaignId], references: [id])
+  lead     Lead         @relation(fields: [leadId], references: [id])
+  step     SequenceStep @relation(fields: [stepId], references: [id])
+  events   EmailEvent[]
+
+  @@unique([campaignId, leadId, stepId])
+  @@index([businessId, status, scheduledFor])
+}
+
+// businessId NULL = platform-wide (hard bounces, complaints, never-email-me-from-any-Zeroid-sender).
+model Suppression {
+  id         String            @id @default(cuid())
+  businessId String?
+  email      String
+  reason     SuppressionReason
+  source     String?
+  createdAt  DateTime          @default(now())
+
+  business Business? @relation(fields: [businessId], references: [id])
+
+  @@index([email])
+}
+
+model EmailEvent {
+  id         String         @id @default(cuid())
+  businessId String
+  campaignId String
+  messageId  String
+  leadId     String
+  type       EmailEventType
+  payload    Json           @default("{}")
+  createdAt  DateTime       @default(now())
+
+  business Business        @relation(fields: [businessId], references: [id])
+  message  CampaignMessage @relation(fields: [messageId], references: [id])
+
+  @@index([businessId, campaignId, type])
+  @@index([messageId])
 }
