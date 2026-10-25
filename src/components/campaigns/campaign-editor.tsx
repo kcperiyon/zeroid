@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClass, Card, Field, ghostButtonClass, inputClass, Notice, StatusBadge } from "./ui";
 
@@ -17,6 +17,16 @@ type Props = {
   stats: { messages: Record<string, number>; events: Record<string, number> };
   events: EventRow[];
 };
+
+/** Same text on server and first client render (UTC), then the viewer's local time -- avoids a hydration mismatch. */
+function LocalTime({ iso }: { iso: string }) {
+  const utc = new Date(iso).toLocaleString("en-GB", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }) + " UTC";
+  const [text, setText] = useState(utc);
+  useEffect(() => {
+    setText(new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }));
+  }, [iso]);
+  return <span suppressHydrationWarning>{text}</span>;
+}
 
 const EVENT_LABEL: Record<string, string> = {
   sent: "Sent", delivered: "Delivered", bounced: "Bounced", opened: "Opened", clicked: "Clicked",
@@ -202,7 +212,7 @@ export function CampaignEditor({ businessId, campaign, sandboxed, steps: initial
                   {typeof ev.payload.class === "string" && <span className="text-neutral-400"> · {ev.payload.class.replace("_", " ")}</span>}
                   {typeof ev.payload.reason === "string" && <span className="text-neutral-400"> · {ev.payload.reason}</span>}
                 </span>
-                <span className="text-xs text-neutral-400">{new Date(ev.at).toLocaleString()}</span>
+                <span className="text-xs text-neutral-400"><LocalTime iso={ev.at} /></span>
               </li>
             ))}
           </ul>

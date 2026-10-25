@@ -18,6 +18,26 @@ type Tenant = { orgId: string; businessId: string; identityId: string; segmentId
 let A: Tenant;
 let B: Tenant;
 const leadIds: Record<string, string> = {};
+const allTenants: Tenant[] = [];
+
+/** Deletes everything a test tenant created. Safe to call twice. */
+async function purge(t: Tenant) {
+  await withBusinessScope(t.orgId, t.businessId, async (tx) => {
+    await tx.emailEvent.deleteMany({ where: { businessId: t.businessId } });
+    await tx.campaignMessage.deleteMany({ where: { businessId: t.businessId } });
+    await tx.sequenceStep.deleteMany({ where: { businessId: t.businessId } });
+    await tx.sequence.deleteMany({ where: { businessId: t.businessId } });
+    await tx.campaign.deleteMany({ where: { businessId: t.businessId } });
+    await tx.segment.deleteMany({ where: { businessId: t.businessId } });
+    await tx.sendingIdentity.deleteMany({ where: { businessId: t.businessId } });
+    await tx.task.deleteMany({ where: { businessId: t.businessId } });
+    await tx.leadEvent.deleteMany({ where: { businessId: t.businessId } });
+    await tx.lead.deleteMany({ where: { businessId: t.businessId } });
+    await tx.suppression.deleteMany({ where: { businessId: t.businessId } });
+  });
+  await withOrgScope(t.orgId, (tx) => tx.business.deleteMany({ where: { organizationId: t.orgId } }));
+  await db.organization.deleteMany({ where: { id: t.orgId } });
+}
 
 const sent: OutgoingEmail[] = [];
 const fakeSender: EmailSender = {
@@ -53,7 +73,9 @@ async function makeTenant(label: string, provider: "smtp" | "brevo_shared" = "sm
     const s2 = await tx.sequenceStep.create({ data: { businessId: business.id, sequenceId: sequence.id, position: 2, delayDays: 3, subject: "Following up", body: "Just checking in." } });
     return { identityId: identity.id, segmentId: segment.id, campaignId: campaign.id, steps: [s1.id, s2.id] };
   });
-  return { orgId: org.id, businessId: business.id, ...t };
+  const tenant = { orgId: org.id, businessId: business.id, ...t };
+  allTenants.push(tenant);
+  return tenant;
 }
 
 async function addLead(tenant: Tenant, key: string, email: string | null, name = key, company = `${key} Ltd`) {
@@ -98,23 +120,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
   vi.unstubAllGlobals();
-  for (const t of [A, B]) {
-    await withBusinessScope(t.orgId, t.businessId, async (tx) => {
-      await tx.emailEvent.deleteMany({ where: { businessId: t.businessId } });
-      await tx.campaignMessage.deleteMany({ where: { businessId: t.businessId } });
-      await tx.sequenceStep.deleteMany({ where: { businessId: t.businessId } });
-      await tx.sequence.deleteMany({ where: { businessId: t.businessId } });
-      await tx.campaign.deleteMany({ where: { businessId: t.businessId } });
-      await tx.segment.deleteMany({ where: { businessId: t.businessId } });
-      await tx.sendingIdentity.deleteMany({ where: { businessId: t.businessId } });
-      await tx.task.deleteMany({ where: { businessId: t.businessId } });
-      await tx.leadEvent.deleteMany({ where: { businessId: t.businessId } });
-      await tx.lead.deleteMany({ where: { businessId: t.businessId } });
-      await tx.suppression.deleteMany({ where: { OR: [{ businessId: t.businessId }, { email: "globalbounce@x.example" }, { email: "bola@acme-test.example" }] } });
+  for (const t of allTenants) await purge(t);
+  await db.$transaction(async (tx) => {
+    await tx.suppression.deleteMany({
+      where: { businessId: null, email: { in: ["ada@acme-test.example", "globalbounce@x.example", "bola@acme-test.example", "gone@c.example"] } },
     });
-    await withOrgScope(t.orgId, (tx) => tx.business.deleteMany({ where: { organizationId: t.orgId } }));
-    await db.organization.delete({ where: { id: t.orgId } });
-  }
+  });
 });
 
 describe("launching a campaign", () => {

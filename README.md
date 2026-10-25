@@ -13,6 +13,8 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
 
 **Added 2026-10-03:** white + deep-blue redesign; `Capture` tab (public hosted form, embeddable iframe, write-only webhook/API key at `/api/intake/<key>`); `Social` tab (Facebook Page + linked Instagram: DMs/comments become organic leads with a reply task, Lead Ads become paid leads — capture only, never replies; webhook `/api/webhooks/meta`, needs `WHATSAPP_APP_SECRET`); Instagram Business Discovery lookup on the Prospecting tab; every lead now has `medium` (organic/paid) + `campaign`, and Insights splits channels by it; automatic Gemini fallback when Anthropic is out of credit/down (`src/lib/ai/fallback.ts`, `GEMINI_API_KEY`, live-verified). The Meta-side calls (Page subscribe, Lead Ad fetch, Business Discovery, real payload shapes) follow Meta's docs but are NOT yet tested against a real Page.
 
+**Email campaigns, Phase 1 (2026-10-25) — built and verified locally, NOT yet deployed.** Campaign → Segment → Sequence engine with a code-level sandbox guard, own SMTP/DKIM sender, unsubscribe + suppression, bounce/reply capture and a mobile UI. See [`docs/email-campaigns.md`](docs/email-campaigns.md) for what is verified and what is not.
+
 ### Built and verified (real browser walkthroughs + automated tests, not just written)
 
 - **Auth & multi-tenancy:** signup/login/logout, Organization →
