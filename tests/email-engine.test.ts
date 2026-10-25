@@ -150,6 +150,25 @@ describe("launching a campaign", () => {
   });
 });
 
+describe("unedited template prompts", () => {
+  it("refuses to launch while any step still has [[double bracket]] prompt text", async () => {
+    const t = await makeTenant("tmpl");
+    await withBusinessScope(t.orgId, t.businessId, (tx) =>
+      tx.sequenceStep.updateMany({ where: { businessId: t.businessId, position: 1 }, data: { body: "Hi {{firstName}}, [[write something specific here]]" } })
+    );
+    await expect(launchCampaign(t.orgId, t.businessId, t.campaignId, deps(MONDAY_11))).rejects.toThrow(/double brackets/);
+    await withBusinessScope(t.orgId, t.businessId, async (tx) => {
+      await tx.sequenceStep.deleteMany({ where: { businessId: t.businessId } });
+      await tx.sequence.deleteMany({ where: { businessId: t.businessId } });
+      await tx.campaign.deleteMany({ where: { businessId: t.businessId } });
+      await tx.segment.deleteMany({ where: { businessId: t.businessId } });
+      await tx.sendingIdentity.deleteMany({ where: { businessId: t.businessId } });
+    });
+    await withOrgScope(t.orgId, (tx) => tx.business.deleteMany({ where: { organizationId: t.orgId } }));
+    await db.organization.delete({ where: { id: t.orgId } });
+  });
+});
+
 describe("sending", () => {
   it("does nothing outside business hours (weekend) and sends once the window opens", async () => {
     const weekend = await processDueMessages(A.orgId, A.businessId, deps(SATURDAY));

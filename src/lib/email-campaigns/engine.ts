@@ -4,7 +4,7 @@ import { withBusinessScope } from "@/lib/tenant-db";
 import { generate } from "@/lib/ai";
 import { recordLeadEvent } from "@/lib/lead-events";
 import { SandboxBlockedError } from "./guard";
-import { domainAcceptsMail } from "./mx";
+import { checkDomains, domainAcceptsMail } from "./mx";
 import { effectiveDailyCap, isInsideWindow, isValidTimezone, nextAllowedTime, type SendWindow } from "./schedule";
 import { SENDERS, type EmailSender, type SenderIdentity } from "./senders";
 import { findSuppression, looksLikeEmail, normaliseEmail } from "./suppression";
@@ -121,6 +121,11 @@ export async function launchCampaign(
   const { campaign, steps, leads, suppressed } = prep;
 
   const result: LaunchResult = { scheduled: 0, suppressed: 0, invalid: 0, duplicate: 0, noEmail: 0 };
+  // One parallel DNS check per unique domain up front, so a slow resolver cannot stall the launch.
+  const domainOk = await checkDomains(
+    leads.map((l) => normaliseEmail(l.email ?? "").split("@")[1] ?? "").filter(Boolean),
+    mx
+  );
   const seen = new Set<string>();
   const rows: Prisma.CampaignMessageCreateManyInput[] = [];
 
@@ -139,7 +144,7 @@ export async function launchCampaign(
       result.suppressed++;
       continue;
     }
-    if (!looksLikeEmail(email) || !(await mx(email.split("@")[1]))) {
+    if (!looksLikeEmail(email) || domainOk.get(email.split("@")[1]) === false) {
       result.invalid++;
       continue;
     }
