@@ -15,6 +15,8 @@ Phase 2 started.** Pushed to [github.com/kcperiyon/zeroid](https://github.com/kc
 
 **Email campaigns, Phase 1 (2026-10-25) — built and verified locally, NOT yet deployed.** Campaign → Segment → Sequence engine with a code-level sandbox guard, own SMTP/DKIM sender, unsubscribe + suppression, bounce/reply capture and a mobile UI. See [`docs/email-campaigns.md`](docs/email-campaigns.md) for what is verified and what is not.
 
+**Prospect discovery + enrichment, Phase 2 (2026-10-25) — built and verified locally, NOT yet deployed.** Industry × place search over OpenStreetMap, own website crawler (robots.txt, SSRF-safe), email extraction and 0–100 confidence per address, de-duplication, research notes, and a Discovery tab. See [`docs/discovery.md`](docs/discovery.md).
+
 ### Built and verified (real browser walkthroughs + automated tests, not just written)
 
 - **Auth & multi-tenancy:** signup/login/logout, Organization →

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/privacy", "/data-deletion"];
+const PUBLIC_PATHS = ["/login", "/signup", "/privacy", "/data-deletion", "/bot"];
 const PUBLIC_PREFIXES = ["/invite/", "/f/", "/u/", "/t/"];
 
 export async function proxy(request: NextRequest) {

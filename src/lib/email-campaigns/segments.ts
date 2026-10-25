@@ -11,6 +11,8 @@ export const SegmentFilterSchema = z.object({
   createdAfter: z.string().datetime().optional(),
   createdBefore: z.string().datetime().optional(),
   companyContains: z.string().trim().max(100).optional(),
+  // Only leads whose address was scored at least this high by discovery (leads added by hand have no score and are excluded).
+  minEmailConfidence: z.number().int().min(0).max(100).optional(),
 });
 export type SegmentFilter = z.infer<typeof SegmentFilterSchema>;
 
@@ -33,6 +35,7 @@ export function segmentWhere(businessId: string, filter: SegmentFilter): Prisma.
   if (filter.createdAfter) and.push({ createdAt: { gte: new Date(filter.createdAfter) } });
   if (filter.createdBefore) and.push({ createdAt: { lte: new Date(filter.createdBefore) } });
   if (filter.companyContains) and.push({ company: { contains: filter.companyContains, mode: "insensitive" } });
+  if (filter.minEmailConfidence !== undefined) and.push({ emailConfidence: { gte: filter.minEmailConfidence } });
   return { businessId, AND: and };
 }
 

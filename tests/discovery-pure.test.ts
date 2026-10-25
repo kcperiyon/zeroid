@@ -5,12 +5,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { INDUSTRIES, isCustomOsmTag, resolveIndustry } from "../src/lib/discovery/industries";
 import { countryFromAddress, domainOf, gridCells, isCompanySite, normalizeName, phoneKey } from "../src/lib/discovery/normalize";
 import { buildOverpassQuery, parseOverpass, RateLimited, searchOverpass } from "../src/lib/discovery/osm";
-import { cleanEmail, decodeCloudflareEmail, extractFacts, extractPeople } from "../src/lib/discovery/extract";
+import { cleanEmail, decodeCloudflareEmail, extractFacts, extractPeople, socialProfile } from "../src/lib/discovery/extract";
 import { applyPattern, inferPattern, pickSendable, scoreEmail, splitName, DEFAULT_SEND_THRESHOLD, type ScoreInput } from "../src/lib/discovery/emails";
 import { isPrivateAddress, parseRobots, PoliteCrawler, safeGet, BlockedError } from "../src/lib/discovery/web";
 import { _resetProbeCaches, probeMailbox } from "../src/lib/discovery/smtp-probe";
 import { enrichProspect } from "../src/lib/discovery/enrich";
 import { buildResearchNote } from "../src/lib/discovery/note";
+import { acceptOpeningLine } from "../src/lib/email-campaigns/engine";
+import { gzipSync } from "node:zlib";
+import { _resetCommonCrawlCache, archivedPages, bodyFromWarcRecord } from "../src/lib/discovery/commoncrawl";
 
 describe("industries", () => {
   it("every catalog entry has tags in strict key=value form", () => {
@@ -233,7 +236,7 @@ describe("email extraction", () => {
     expect(f.description).toBe("Road freight across West Africa.");
     expect(f.lang).toBe("en");
     expect(f.phones).toEqual(expect.arrayContaining(["+234 1 234 5678", "+2348012345678"]));
-    expect(f.socials).toEqual(expect.arrayContaining(["https://www.linkedin.com/company/acme", "https://facebook.com/acmefreight"]));
+    expect(f.socials).toEqual(expect.arrayContaining(["https://linkedin.com/company/acme", "https://facebook.com/acmefreight"]));
     expect(f.contactLinks).toEqual(expect.arrayContaining(["https://acme.test/contact-us", "https://acme.test/about/team"]));
     expect(f.contactLinks.some((l) => l.includes("/blog"))).toBe(false);
   });
@@ -241,6 +244,84 @@ describe("email extraction", () => {
     const f = extractFacts(html, "https://acme.test/");
     expect(f.people).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Ada Okafor", title: "Managing Director" }), expect.objectContaining({ name: "Chidi Eze" })]));
     expect(extractPeople("Contact Us, Director of nothing\nMeet The Team - Manager")).toEqual([]);
+  });
+});
+
+describe("social links and titles", () => {
+  it("keeps profile links without tracking, and drops posts, share buttons and non-profile pages", () => {
+    expect(socialProfile("https://www.instagram.com/alpha_london/?utm_source=ig_web&igsh=abc")).toBe("https://instagram.com/alpha_london");
+    expect(socialProfile("https://www.instagram.com/reel/DIgDCOIJuQR/?utm_source=x")).toBeNull();
+    expect(socialProfile("https://www.facebook.com/sharer/sharer.php?u=x")).toBeNull();
+    expect(socialProfile("https://www.linkedin.com/company/acme-freight/about/")).toBe("https://linkedin.com/company/acme-freight");
+    expect(socialProfile("https://www.linkedin.com/feed/")).toBeNull();
+    expect(socialProfile("not a url")).toBeNull();
+  });
+  it("ignores a page title that is only punctuation", () => {
+    expect(extractFacts("<html><head><title> . </title></head></html>", "https://a.test/").title).toBeNull();
+    expect(extractFacts("<html><head><title>Acme</title></head></html>", "https://a.test/").title).toBe("Acme");
+  });
+  it("names the same contact in the note as the one chosen for sending (a person over a role inbox)", () => {
+    const signals = { title: null, description: null, siteName: null, lang: null, tech: [], people: [], phones: [], socials: [], pagesRead: [], pagesBlocked: [] };
+    const emails = [
+      { email: "info@a.test", kind: "role" as const, source: "x", personName: null, mxOk: true, catchAll: null, smtp: "unchecked" as const, confidence: 94, reasons: ["Published."] },
+      { email: "ada@a.test", kind: "found" as const, source: "x", personName: "Ada Okafor", mxOk: true, catchAll: null, smtp: "unchecked" as const, confidence: 80, reasons: ["Published."] },
+    ];
+    expect(buildResearchNote({ name: "A Co" }, { domain: "a.test", emails, signals }, 60)).toContain("Best contact: ada@a.test (Ada Okafor)");
+    expect(buildResearchNote({ name: "A Co" }, { domain: "a.test", emails, signals }, 90)).toContain("Best contact: info@a.test");
+    expect(buildResearchNote({ name: "A Co" }, { domain: "a.test", emails, signals }, 95)).toContain("No address reliable enough");
+  });
+});
+
+describe("Common Crawl", () => {
+  const warc = (html: string, http = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8") =>
+    gzipSync(Buffer.from(`WARC/1.0\r\nWARC-Type: response\r\n\r\n${http}\r\n\r\n${html}`));
+
+  it("extracts the HTML body from a gzipped WARC response, and refuses anything that is not a plain 200 page", () => {
+    expect(bodyFromWarcRecord(warc("<html>hello</html>"))).toBe("<html>hello</html>");
+    expect(bodyFromWarcRecord(warc("x", "HTTP/1.1 404 Not Found\r\nContent-Type: text/html"))).toBeNull();
+    expect(bodyFromWarcRecord(warc("x", "HTTP/1.1 200 OK\r\nContent-Type: application/pdf"))).toBeNull();
+    expect(bodyFromWarcRecord(warc("x", "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Encoding: br"))).toBeNull();
+    // Real Common Crawl records carry the original header under an X-Crawler- prefix and a decoded body.
+    expect(bodyFromWarcRecord(warc("<html>ok</html>", "HTTP/1.1 200 \r\nX-Crawler-content-encoding: gzip\r\ncontent-type: text/html;charset=utf-8"))).toBe("<html>ok</html>");
+    expect(bodyFromWarcRecord(Buffer.from("not gzip"))).toBeNull();
+  });
+
+  it("looks the domain up in the latest index and fetches only the byte range of each contact-like page", async () => {
+    _resetCommonCrawlCache();
+    const requests: { url: string; range?: string }[] = [];
+    const record = (path: string, off: number) => JSON.stringify({ url: `https://acme.test${path}`, filename: "crawl-data/x.warc.gz", offset: String(off), length: "500", status: "200", mime: "text/html" });
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      requests.push({ url, range: (init?.headers as Record<string, string> | undefined)?.Range });
+      if (url.endsWith("collinfo.json")) return new Response(JSON.stringify([{ id: "CC-MAIN-2026-43" }, { id: "CC-MAIN-2026-40" }]));
+      if (url.includes("-index?")) return new Response([record("/products", 50), record("/about", 100), record("/contact/", 900), record("/contact", 901)].join("\n"));
+      return new Response(warc(`<a href="mailto:hi@acme.test">hi</a>`), { status: 206 });
+    };
+    const pages = await archivedPages("acme.test", fetchFn);
+    expect(pages.map((p) => p.url)).toEqual(["https://acme.test/contact/", "https://acme.test/about"]); // contact first, duplicate path dropped
+    const index = requests.find((r) => r.url.includes("-index?"))!.url;
+    expect(index).toContain("CC-MAIN-2026-43-index");
+    expect(decodeURIComponent(index)).toContain("url=acme.test/*");
+    expect(requests.filter((r) => r.range).map((r) => r.range)).toEqual(["bytes=900-1399", "bytes=100-599"]);
+  });
+
+  it("returns nothing when the domain is not in the crawl, and reports an index outage", async () => {
+    _resetCommonCrawlCache();
+    const base = async (url: string) => (url.endsWith("collinfo.json") ? new Response(JSON.stringify([{ id: "CC-1" }])) : undefined);
+    expect(await archivedPages("none.test", async (u) => (await base(u)) ?? new Response("", { status: 404 }))).toEqual([]);
+    await expect(archivedPages("x.test", async (u) => (await base(u)) ?? new Response("", { status: 503 }))).rejects.toThrow(/503/);
+  });
+});
+
+describe("AI opening line safety", () => {
+  it("accepts one plain sentence and drops anything with links, addresses, markup or several lines", () => {
+    expect(acceptOpeningLine('"Saw that Acme runs freight across West Africa."')).toBe("Saw that Acme runs freight across West Africa.");
+    expect(acceptOpeningLine("Visit https://evil.test now")).toBeNull();
+    expect(acceptOpeningLine("Email me at boss@evil.test")).toBeNull();
+    expect(acceptOpeningLine("Check www.evil.test")).toBeNull();
+    expect(acceptOpeningLine("Line one\nLine two")).toBeNull();
+    expect(acceptOpeningLine("<b>hi</b>")).toBeNull();
+    expect(acceptOpeningLine("   ")).toBeNull();
+    expect(acceptOpeningLine("x".repeat(300))).toBeNull();
   });
 });
 
@@ -424,11 +505,41 @@ describe("enrichment (canned pages, no network)", () => {
   });
   it("leaves a robots-blocked site alone and says why; reports an unreachable one as failed", async () => {
     const blocked = new PoliteCrawler({ fetchPage: (async (u: string) => ({ status: 200, contentType: "text/plain", finalUrl: u, body: "User-agent: *\nDisallow: /\n" })) as never, minDelayMs: 0 });
-    const r1 = await enrichProspect(input, { crawler: blocked, mxCheck: async () => true });
+    const r1 = await enrichProspect(input, { crawler: blocked, mxCheck: async () => true, archive: null });
     expect(r1).toMatchObject({ status: "skipped" });
     expect(r1.note).toMatch(/robots/i);
     const down = new PoliteCrawler({ fetchPage: (async () => { throw new Error("ECONNREFUSED"); }) as never, minDelayMs: 0 });
-    expect((await enrichProspect(input, { crawler: down, mxCheck: async () => true })).status).toBe("failed");
+    expect((await enrichProspect(input, { crawler: down, mxCheck: async () => true, archive: null })).status).toBe("failed");
+  });
+  it("uses an archived copy only when the live site is unreachable, never when robots.txt said no", async () => {
+    const archived = [{ url: "https://acmefreight.test/contact", html: `<html><body><a href="mailto:ada.okafor@acmefreight.test">Ada</a> <a href="mailto:info@acmefreight.test">info</a></body></html>` }];
+    let asked = 0;
+    const archive = async () => {
+      asked++;
+      return archived;
+    };
+    const blocked = new PoliteCrawler({ fetchPage: (async (u: string) => ({ status: 200, contentType: "text/plain", finalUrl: u, body: "User-agent: *\nDisallow: /\n" })) as never, minDelayMs: 0 });
+    const r1 = await enrichProspect(input, { crawler: blocked, mxCheck: async () => true, archive });
+    expect(r1.status).toBe("skipped");
+    expect(asked).toBe(0); // a site that asked us to stay out is not read through a back door
+
+    const down = new PoliteCrawler({ fetchPage: (async () => { throw new Error("ECONNREFUSED"); }) as never, minDelayMs: 0 });
+    const r2 = await enrichProspect(input, { crawler: down, mxCheck: async () => true, archive });
+    expect(asked).toBe(1);
+    expect(r2.status).toBe("done");
+    expect(r2.signals.archived).toEqual(["https://acmefreight.test/contact"]);
+    // Archived addresses are recorded but never reach the send threshold on their own.
+    expect(r2.emails.map((e) => e.email).sort()).toEqual(["ada.okafor@acmefreight.test", "info@acmefreight.test"]);
+    expect(r2.emails.every((e) => e.confidence < DEFAULT_SEND_THRESHOLD && e.reasons.join(" ").includes("archived copy"))).toBe(true);
+    expect(buildResearchNote(input, r2)).toContain("archived copy");
+    // ...unless a mailbox check confirms one.
+    const r3 = await enrichProspect(input, { crawler: down, mxCheck: async () => true, archive, probeEnabled: true, probe: async () => ({ smtp: "accepted", catchAll: false }) });
+    expect(r3.emails.some((e) => e.confidence >= DEFAULT_SEND_THRESHOLD)).toBe(true);
+  });
+  it("still reports a site as unreachable when the archive has nothing or fails", async () => {
+    const down = new PoliteCrawler({ fetchPage: (async () => { throw new Error("ECONNREFUSED"); }) as never, minDelayMs: 0 });
+    expect((await enrichProspect(input, { crawler: down, mxCheck: async () => true, archive: async () => [] })).status).toBe("failed");
+    expect((await enrichProspect(input, { crawler: down, mxCheck: async () => true, archive: async () => { throw new Error("index down"); } })).status).toBe("failed");
   });
   it("skips prospects without a company site, but keeps an address the source itself listed", async () => {
     expect((await enrichProspect({ name: "No Site", website: null })).status).toBe("skipped");

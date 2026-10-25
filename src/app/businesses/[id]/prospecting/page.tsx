@@ -14,7 +14,8 @@ export default async function ProspectingPage({ params }: { params: Promise<{ id
   const [icpProfiles, prospects] = await withBusinessScope(user.organizationId, businessId, (tx) =>
     Promise.all([
       tx.icpProfile.findMany({ where: { businessId, isActive: true }, orderBy: { createdAt: "asc" } }),
-      tx.prospect.findMany({ where: { businessId }, orderBy: { createdAt: "desc" } }),
+      // Discovery results have their own tab; this page is for hand-run searches.
+      tx.prospect.findMany({ where: { businessId, discoveryJobId: null }, orderBy: { createdAt: "desc" }, take: 500 }),
     ])
   );
 

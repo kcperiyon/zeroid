@@ -22,7 +22,8 @@ export async function importProspectAsLead(tx: Tx, businessId: string, prospectI
   // copied onto the lead, so a guess can never end up in a campaign. Prospects that were never
   // enriched (manual search results) keep their single address as before.
   const scored = await tx.prospectEmail.findMany({ where: { prospectId }, orderBy: [{ confidence: "desc" }] });
-  let email = prospect.email;
+  // A discovered prospect that has not been scored yet has no address we are allowed to trust.
+  let email = prospect.discoveryJobId ? null : prospect.email;
   let emailConfidence: number | null = null;
   if (scored.length) {
     const threshold = await getSendThreshold(tx, businessId);

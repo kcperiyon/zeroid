@@ -95,7 +95,7 @@ export function pickSendable<T extends { email: string; kind: string; confidence
 // ---- confidence -------------------------------------------------------------------------------------------
 
 export type EmailKind = "found" | "role" | "pattern_guess";
-export type Via = "mailto" | "text" | "jsonld" | "cloudflare" | "obfuscated" | "osm" | "pattern";
+export type Via = "mailto" | "text" | "jsonld" | "cloudflare" | "obfuscated" | "osm" | "pattern" | "archive";
 
 export type ScoreInput = {
   email: string;
@@ -110,7 +110,7 @@ export type ScoreInput = {
   patternObserved: boolean;
 };
 
-const BASE: Record<Via, number> = { mailto: 78, jsonld: 78, cloudflare: 75, text: 68, obfuscated: 62, osm: 70, pattern: 30 };
+const BASE: Record<Via, number> = { mailto: 78, jsonld: 78, cloudflare: 75, text: 68, obfuscated: 62, osm: 70, pattern: 30, archive: 50 };
 
 export function scoreEmail(i: ScoreInput): { confidence: number; reasons: string[] } {
   const reasons: string[] = [];
@@ -121,6 +121,7 @@ export function scoreEmail(i: ScoreInput): { confidence: number; reasons: string
     i.via === "pattern" ? "Guessed from a name and an address pattern; not seen published." :
     i.via === "osm" ? "Listed on the business's OpenStreetMap entry." :
     i.via === "obfuscated" ? "Published on the company site in a disguised form." :
+    i.via === "archive" ? "Found on an archived copy of the company's site (Common Crawl)." :
     "Published on the company's own website."
   );
   let cap = 95; // never claim certainty without a real delivery
@@ -148,6 +149,10 @@ export function scoreEmail(i: ScoreInput): { confidence: number; reasons: string
   if (i.via === "pattern" && i.smtp !== "accepted") {
     cap = Math.min(cap, DEFAULT_SEND_THRESHOLD - 3);
     reasons.push("A guess that was not confirmed, so it will not be used for sending.");
+  }
+  if (i.via === "archive" && i.smtp !== "accepted") {
+    cap = Math.min(cap, DEFAULT_SEND_THRESHOLD - 3);
+    reasons.push("Taken from an archived copy of their site, which may be out of date, so it will not be used for sending until a mailbox check confirms it.");
   }
 
   const confidence = Math.max(0, Math.min(cap, Math.round(score)));

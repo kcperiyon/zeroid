@@ -163,7 +163,7 @@ export async function applyEnrichment(tx: Tx, businessId: string, prospectId: st
   }
   const best = result.emails[0];
   const sendable = pickSendable(result.emails, threshold);
-  const note = result.status === "done" ? buildResearchNote(input, result) : prospect.researchNote;
+  const note = result.status === "done" ? buildResearchNote(input, result, threshold) : prospect.researchNote;
   const prevSignals = (prospect.signals as Record<string, unknown> | null) ?? {};
 
   await tx.prospect.update({
@@ -175,7 +175,8 @@ export async function applyEnrichment(tx: Tx, businessId: string, prospectId: st
       researchNote: note,
       bestEmailConfidence: best?.confidence ?? null,
       // The prospect's own email field only ever holds an address that is good enough to send to.
-      email: sendable?.email ?? prospect.email,
+      // A discovered prospect's own email field only ever holds a scored, sendable address.
+      email: sendable?.email ?? (prospect.discoveryJobId ? null : prospect.email),
       phone: prospect.phone ?? result.signals.phones[0] ?? null,
       signals: { ...prevSignals, ...result.signals },
     },

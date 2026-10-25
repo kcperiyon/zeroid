@@ -6,6 +6,7 @@ import { withBusinessScope, withOrgScope } from "../src/lib/tenant-db";
 import { createJob, planJobs, runCells, runEnrichment, setJobStatus, type RunnerDeps } from "../src/lib/discovery/runner";
 import { importProspectAsLead } from "../src/lib/prospect-import";
 import { PoliteCrawler } from "../src/lib/discovery/web";
+import { segmentWhere } from "../src/lib/email-campaigns/segments";
 
 const tag = Date.now();
 type Tenant = { orgId: string; businessId: string };
@@ -289,6 +290,42 @@ describe("enrichment storage and the import safeguard", () => {
     expect(lead2.emailConfidence).toBeNull();
   });
 
+  it("does not trust the raw address of a discovered prospect that has not been scored yet", async () => {
+    const t = await makeTenant("unscored");
+    const job = await createJob(t.orgId, t.businessId, jobCfg());
+    const p = await withBusinessScope(t.orgId, t.businessId, (tx) =>
+      tx.prospect.create({ data: { businessId: t.businessId, channel: "osm", externalId: "node/9", name: "Raw Co", email: "raw@raw.test", discoveryJobId: job.id, enrichStatus: "pending" } })
+    );
+    const lead = await withBusinessScope(t.orgId, t.businessId, async (tx) => {
+      await importProspectAsLead(tx, t.businessId, p.id);
+      return tx.lead.findFirstOrThrow({ where: { businessId: t.businessId } });
+    });
+    expect(lead.email).toBeNull();
+    // A hand-run prospect (no discovery job) keeps working exactly as before.
+    const manual = await withBusinessScope(t.orgId, t.businessId, (tx) =>
+      tx.prospect.create({ data: { businessId: t.businessId, channel: "google", externalId: "g1", name: "Manual Co", email: "hi@manual.test" } })
+    );
+    const lead2 = await withBusinessScope(t.orgId, t.businessId, async (tx) => {
+      await importProspectAsLead(tx, t.businessId, manual.id);
+      return tx.lead.findFirstOrThrow({ where: { businessId: t.businessId, company: "Manual Co" } });
+    });
+    expect(lead2.email).toBe("hi@manual.test");
+  });
+
+  it("lets a segment require a minimum email confidence, excluding hand-added leads", async () => {
+    const t = await makeTenant("segconf");
+    await withBusinessScope(t.orgId, t.businessId, async (tx) => {
+      await tx.lead.create({ data: { businessId: t.businessId, name: "High", email: "h@x.test", emailConfidence: 90 } });
+      await tx.lead.create({ data: { businessId: t.businessId, name: "Mid", email: "m@x.test", emailConfidence: 65 } });
+      await tx.lead.create({ data: { businessId: t.businessId, name: "Manual", email: "man@x.test" } });
+    });
+    const count = (min?: number) =>
+      withBusinessScope(t.orgId, t.businessId, (tx) => tx.lead.count({ where: segmentWhere(t.businessId, min === undefined ? {} : { minEmailConfidence: min }) }));
+    expect(await count()).toBe(3);
+    expect(await count(60)).toBe(2);
+    expect(await count(80)).toBe(1);
+  });
+
   it("respects a stricter per-business threshold", async () => {
     const t = await makeTenant("strict");
     await withBusinessScope(t.orgId, t.businessId, (tx) => tx.business.update({ where: { id: t.businessId }, data: { settings: { minEmailConfidence: 95 } } }));
@@ -307,7 +344,7 @@ describe("enrichment storage and the import safeguard", () => {
     const deps = { crawler: new PoliteCrawler({ minDelayMs: 0, fetchPage: (async (url: string) => {
       if (url.startsWith("https://blocked.test")) return { status: 200, contentType: "text/plain", body: pages["https://blocked.test/robots.txt"], finalUrl: url };
       throw new Error("ECONNREFUSED");
-    }) as never }), mxCheck: async () => true, probeEnabled: false };
+    }) as never }), mxCheck: async () => true, probeEnabled: false, archive: null };
     await runEnrichment(t.orgId, t.businessId, 20_000, { enrichDeps: deps });
     const rows = await prospects(t);
     expect(rows.find((r) => r.id === bad.id)).toMatchObject({ enrichStatus: "failed" });

@@ -158,6 +158,23 @@ function obfuscatedEmails(text: string): string[] {
 const CONTACT_PATH = /(contact|about|team|people|staff|leadership|management|our-story|who-we-are|impressum|imprint|kontakt|equipe|nosotros|company)/i;
 const SOCIAL = /^https?:\/\/(www\.)?(linkedin\.com\/(company|in)\/|facebook\.com\/|instagram\.com\/|twitter\.com\/|x\.com\/|youtube\.com\/(@|c\/|channel\/|user\/)|tiktok\.com\/@)/i;
 
+/** A profile link without tracking parameters; null for posts, share buttons and other non-profile URLs. */
+export function socialProfile(href: string): string | null {
+  try {
+    const u = new URL(href);
+    const parts = u.pathname.split("/").filter(Boolean);
+    const host = u.hostname.replace(/^www\./, "");
+    if (!parts.length) return null;
+    const first = parts[0].toLowerCase();
+    const NOT_PROFILE = new Set(["p", "reel", "reels", "explore", "stories", "tv", "share", "sharer", "sharer.php", "dialog", "tr", "intent", "hashtag", "watch", "plugins", "login", "policy", "legal", "privacy", "help", "about"]);
+    if (NOT_PROFILE.has(first)) return null;
+    if (host === "linkedin.com" && !["company", "in"].includes(first)) return null;
+    return `https://${host}/${parts.slice(0, host === "linkedin.com" ? 2 : 1).join("/")}`.slice(0, 200);
+  } catch {
+    return null;
+  }
+}
+
 export function extractFacts(html: string, pageUrl: string): PageFacts {
   const emails: FoundEmail[] = [];
   const seen = new Set<string>();
@@ -210,7 +227,8 @@ export function extractFacts(html: string, pageUrl: string): PageFacts {
   const contactLinks = new Set<string>();
   for (const href of [...links, ...ld.socials]) {
     if (SOCIAL.test(href)) {
-      if (socials.size < 8) socials.add(href.split("#")[0].slice(0, 200));
+      const profile = socialProfile(href);
+      if (profile && socials.size < 8) socials.add(profile);
       continue;
     }
     if (!origin) continue;
@@ -226,7 +244,8 @@ export function extractFacts(html: string, pageUrl: string): PageFacts {
     }
   }
 
-  const title = decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "").replace(/\s+/g, " ").trim().slice(0, 200) || null;
+  const rawTitle = decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+  const title = rawTitle.replace(/[^a-z0-9]/gi, "").length >= 3 ? rawTitle : null; // "." and "-" are not titles
   return {
     title,
     description: metaContent(html, "name", "description") ?? metaContent(html, "property", "og:description"),

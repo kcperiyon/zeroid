@@ -7,6 +7,7 @@ import {
 } from "./emails";
 import { domainOf, isCompanySite } from "./normalize";
 import { PoliteCrawler } from "./web";
+import { archivedPages } from "./commoncrawl";
 import { probeConfigured, probeMailbox, type ProbeResult } from "./smtp-probe";
 
 export type EnrichInput = {
@@ -47,6 +48,8 @@ export type EnrichResult = {
     socials: string[];
     pagesRead: string[];
     pagesBlocked: { url: string; reason: string }[];
+    /** Archived pages used because the live site was unreachable. */
+    archived?: string[];
   };
 };
 
@@ -56,6 +59,8 @@ export type EnrichDeps = {
   probe?: (email: string) => Promise<ProbeResult>;
   probeEnabled?: boolean;
   maxPages?: number;
+  /** Archived pages for a domain whose live site is unreachable. Default: Common Crawl. null turns it off. */
+  archive?: ((domain: string) => Promise<{ url: string; html: string }[]>) | null;
 };
 
 const emptySignals = (): EnrichResult["signals"] => ({ title: null, description: null, siteName: null, lang: null, tech: [], people: [], phones: [], socials: [], pagesRead: [], pagesBlocked: [] });
@@ -117,6 +122,21 @@ export async function enrichProspect(input: EnrichInput, deps: EnrichDeps = {}):
       for (const so of facts.socials) if (!signals.socials.includes(so) && signals.socials.length < 8) signals.socials.push(so);
       for (const link of facts.contactLinks.sort((a, b) => PAGE_PRIORITY(a) - PAGE_PRIORITY(b))) {
         if (!visited.has(link) && !queue.includes(link)) queue.push(link);
+      }
+    }
+    // The live site cannot be reached at all (not: it told us to stay out): try an archived copy.
+    const unreachable = !homepageOk && signals.pagesBlocked.length > 0 && signals.pagesBlocked.every((p) => p.reason === "unreachable");
+    if (unreachable && deps.archive !== null) {
+      try {
+        for (const a of await (deps.archive ?? ((d: string) => archivedPages(d)))(domain)) {
+          const facts = extractFacts(a.html, a.url);
+          for (const e of facts.emails) note(e.email, "archive", a.url, e.personName);
+          people.push(...facts.people);
+          for (const ph of facts.phones) if (!signals.phones.includes(ph)) signals.phones.push(ph);
+          signals.archived = [...(signals.archived ?? []), a.url];
+        }
+      } catch {
+        /* the archive is a bonus; fall through to "could not be reached" */
       }
     }
     signals.people = [...new Map(people.map((p) => [p.name.toLowerCase(), p])).values()].slice(0, 12);

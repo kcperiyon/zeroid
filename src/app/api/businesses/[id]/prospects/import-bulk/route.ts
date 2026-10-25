@@ -9,6 +9,8 @@ const Schema = z.object({
   // Import only prospects that already have a usable email address (default), or every new prospect.
   onlyWithEmail: z.boolean().default(true),
   channels: z.array(z.string().max(40)).max(20).optional(),
+  // Only prospects found by one discovery search.
+  jobId: z.string().min(1).max(40).optional(),
   limit: z.number().int().min(1).max(1000).default(500),
 });
 
@@ -17,18 +19,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if ("error" in auth) return auth.error;
   const parsed = Schema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
-  const { onlyWithEmail, channels, limit } = parsed.data;
+  const { onlyWithEmail, channels, limit, jobId } = parsed.data;
 
   const result = await withBusinessScope(auth.user.organizationId, auth.businessId, async (tx) => {
     const candidates = await tx.prospect.findMany({
-      where: { businessId: auth.businessId, status: "new", ...(channels?.length ? { channel: { in: channels as never[] } } : {}) },
+      where: { businessId: auth.businessId, status: "new", ...(jobId ? { discoveryJobId: jobId } : {}), ...(channels?.length ? { channel: { in: channels as never[] } } : {}) },
       orderBy: { createdAt: "asc" },
       take: limit,
     });
     let imported = 0;
     let skippedNoEmail = 0;
     for (const p of candidates) {
-      if (onlyWithEmail && !(p.email && looksLikeEmail(p.email))) {
+      // A discovered prospect's address is only trustworthy once enrichment has scored it.
+      const checked = !p.discoveryJobId || p.enrichStatus === "done";
+      if (onlyWithEmail && !(checked && p.email && looksLikeEmail(p.email))) {
         skippedNoEmail++;
         continue;
       }

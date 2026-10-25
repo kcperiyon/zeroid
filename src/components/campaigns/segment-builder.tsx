@@ -10,7 +10,7 @@ const STAGES = ["new", "contacted", "engaged", "qualified", "hot", "appointment"
 type Preview = { count: number; sample: { name: string | null; company: string | null; email: string | null }[] };
 
 export type SegmentFilterValues = {
-  channels?: string[]; stages?: string[]; medium?: string; minScore?: number; maxScore?: number; companyContains?: string;
+  channels?: string[]; stages?: string[]; medium?: string; minScore?: number; maxScore?: number; companyContains?: string; minEmailConfidence?: number;
 };
 
 export function SegmentBuilder({
@@ -33,6 +33,7 @@ export function SegmentBuilder({
   const [minScore, setMinScore] = useState(segment?.filter.minScore !== undefined ? String(segment.filter.minScore) : "");
   const [maxScore, setMaxScore] = useState(segment?.filter.maxScore !== undefined ? String(segment.filter.maxScore) : "");
   const [company, setCompany] = useState(segment?.filter.companyContains ?? "");
+  const [minEmailConf, setMinEmailConf] = useState(segment?.filter.minEmailConfidence !== undefined ? String(segment.filter.minEmailConfidence) : "");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -46,6 +47,7 @@ export function SegmentBuilder({
     ...(minScore !== "" ? { minScore: Number(minScore) } : {}),
     ...(maxScore !== "" ? { maxScore: Number(maxScore) } : {}),
     ...(company.trim() ? { companyContains: company.trim() } : {}),
+    ...(minEmailConf !== "" ? { minEmailConfidence: Number(minEmailConf) } : {}),
   });
 
   async function runPreview() {
@@ -109,6 +111,7 @@ export function SegmentBuilder({
         <Field label="Min score"><input type="number" min={0} max={100} className={inputClass} value={minScore} onChange={(e) => setMinScore(e.target.value)} /></Field>
         <Field label="Max score"><input type="number" min={0} max={100} className={inputClass} value={maxScore} onChange={(e) => setMaxScore(e.target.value)} /></Field>
         <Field label="Company contains"><input className={inputClass} value={company} onChange={(e) => setCompany(e.target.value)} /></Field>
+        <Field label="Min email confidence" hint="Only leads found by Discovery, with an address scored at least this high."><input type="number" min={0} max={100} className={inputClass} value={minEmailConf} onChange={(e) => setMinEmailConf(e.target.value)} /></Field>
       </div>
       <p className="text-xs text-neutral-400">Only leads that have an email address are ever included.</p>
       {preview && (
