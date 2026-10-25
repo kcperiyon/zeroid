@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { recordLeadEvent } from "@/lib/lead-events";
 import { getSendThreshold } from "@/lib/discovery/store";
+import { pickSendable } from "@/lib/discovery/emails";
 
 type Tx = Prisma.TransactionClient;
 
@@ -25,9 +26,9 @@ export async function importProspectAsLead(tx: Tx, businessId: string, prospectI
   let emailConfidence: number | null = null;
   if (scored.length) {
     const threshold = await getSendThreshold(tx, businessId);
-    const usable = scored.filter((e) => e.confidence >= threshold).sort((a, b) => b.confidence - a.confidence || (a.kind === "found" ? -1 : 1));
-    email = usable[0]?.email ?? null;
-    emailConfidence = usable[0]?.confidence ?? null;
+    const pick = pickSendable(scored, threshold);
+    email = pick?.email ?? null;
+    emailConfidence = pick?.confidence ?? null;
   }
   const signals = (prospect.signals ?? {}) as { people?: unknown; phones?: unknown; socials?: unknown; tech?: unknown; title?: unknown };
   const lead = await tx.lead.create({

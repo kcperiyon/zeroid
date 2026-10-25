@@ -4,9 +4,9 @@ import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { INDUSTRIES, isCustomOsmTag, resolveIndustry } from "../src/lib/discovery/industries";
 import { countryFromAddress, domainOf, gridCells, isCompanySite, normalizeName, phoneKey } from "../src/lib/discovery/normalize";
-import { buildOverpassQuery, parseOverpass } from "../src/lib/discovery/osm";
+import { buildOverpassQuery, parseOverpass, RateLimited, searchOverpass } from "../src/lib/discovery/osm";
 import { cleanEmail, decodeCloudflareEmail, extractFacts, extractPeople } from "../src/lib/discovery/extract";
-import { applyPattern, inferPattern, scoreEmail, splitName, DEFAULT_SEND_THRESHOLD, type ScoreInput } from "../src/lib/discovery/emails";
+import { applyPattern, inferPattern, pickSendable, scoreEmail, splitName, DEFAULT_SEND_THRESHOLD, type ScoreInput } from "../src/lib/discovery/emails";
 import { isPrivateAddress, parseRobots, PoliteCrawler, safeGet, BlockedError } from "../src/lib/discovery/web";
 import { _resetProbeCaches, probeMailbox } from "../src/lib/discovery/smtp-probe";
 import { enrichProspect } from "../src/lib/discovery/enrich";
@@ -78,6 +78,18 @@ describe("OpenStreetMap parsing", () => {
     expect(out[0]).toMatchObject({ externalId: "node/1", name: "Okafor & Co", email: "info@okafor.ng", website: "https://www.okafor.ng", lat: 6.45 });
     expect(out[0].address).toContain("Allen Ave");
     expect(out[1]).toMatchObject({ externalId: "way/2", website: null, lat: 6.46 });
+  });
+});
+
+describe("Overpass errors", () => {
+  const ind = resolveIndustry("accountants")!;
+  const box = { south: 6.4, west: 3.3, north: 6.5, east: 3.4 };
+  it("treats busy-server statuses and non-JSON replies as retryable, other errors as final", async () => {
+    for (const status of [429, 502, 503, 504]) {
+      await expect(searchOverpass(ind, box, async () => new Response("x", { status }))).rejects.toBeInstanceOf(RateLimited);
+    }
+    await expect(searchOverpass(ind, box, async () => new Response("<html>overloaded</html>", { status: 200 }))).rejects.toBeInstanceOf(RateLimited);
+    await expect(searchOverpass(ind, box, async () => new Response("bad query", { status: 400 }))).rejects.not.toBeInstanceOf(RateLimited);
   });
 });
 
@@ -158,6 +170,10 @@ describe("polite crawler against a real local server", () => {
     expect(blocked).toMatchObject({ ok: false, reason: "robots" });
     expect(hits).not.toContain("/private/secret");
     expect(hits.filter((h) => h === "/robots.txt")).toHaveLength(1); // cached per host
+  });
+  it("connects by hostname too (the DNS lookup hook answers in the shape Node asks for)", async () => {
+    const r = await safeGet(base.replace("127.0.0.1", "localhost"), { allowPrivate: true });
+    expect(r.status).toBe(200);
   });
   it("caps body size and skips non-text content", async () => {
     const r = await safeGet(`${base}/big`, { allowPrivate: true, maxBytes: 100_000 });
@@ -245,6 +261,20 @@ describe("name patterns", () => {
     expect(inferPattern([{ email: "ada@acme.test", personName: "Ada Okafor" }], "other.test")).toBeNull();
     // "ada@" fits only `first`; "chidi.eze@" only `first.last` -> a tie, so no claim.
     expect(inferPattern([{ email: "ada@acme.test", personName: "Ada Okafor" }, { email: "chidi.eze@acme.test", personName: "Chidi Eze" }], "acme.test")).toBeNull();
+  });
+});
+
+describe("choosing the address to mail", () => {
+  const list = [
+    { email: "info@a.test", kind: "role", confidence: 94 },
+    { email: "ada@a.test", kind: "found", confidence: 80 },
+    { email: "guess@a.test", kind: "pattern_guess", confidence: 55 },
+  ];
+  it("prefers a named person over a role inbox when both qualify, and never a sub-threshold guess", () => {
+    expect(pickSendable(list, 60)?.email).toBe("ada@a.test");
+    expect(pickSendable(list, 90)?.email).toBe("info@a.test");
+    expect(pickSendable(list, 95)).toBeNull();
+    expect(pickSendable([list[2]], 60)).toBeNull();
   });
 });
 

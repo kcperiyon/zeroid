@@ -93,7 +93,7 @@ export async function searchOverpass(industry: Industry, box: Point, fetchFn: Fe
     body: new URLSearchParams({ data: buildOverpassQuery(industry, box) }).toString(),
     signal: AbortSignal.timeout(40_000),
   });
-  if (res.status === 429 || res.status === 504) throw new RateLimited(`Overpass is busy (${res.status}); will retry.`);
+  if ([429, 502, 503, 504].includes(res.status)) throw new RateLimited(`Overpass is busy (${res.status}); will retry.`);
   if (!res.ok) throw new Error(`Overpass returned ${res.status}.`);
   const text = await res.text();
   let body: { elements?: OsmElement[]; remark?: string };

@@ -82,6 +82,16 @@ export function inferPattern(known: { email: string; personName: string }[], dom
   return ranked[0][0];
 }
 
+/**
+ * The address to mail for a prospect: among those at or above the threshold, a named person's
+ * address beats a shared role inbox (info@), then the higher confidence wins. Null if none qualify.
+ */
+export function pickSendable<T extends { email: string; kind: string; confidence: number }>(list: T[], threshold: number): T | null {
+  const ok = list.filter((e) => e.confidence >= threshold);
+  ok.sort((a, b) => Number(a.kind === "role") - Number(b.kind === "role") || b.confidence - a.confidence);
+  return ok[0] ?? null;
+}
+
 // ---- confidence -------------------------------------------------------------------------------------------
 
 export type EmailKind = "found" | "role" | "pattern_guess";

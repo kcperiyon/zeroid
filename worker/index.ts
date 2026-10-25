@@ -14,10 +14,13 @@ import { processDueMessages } from "../src/lib/email-campaigns/engine";
 import { liveSendingEnabled, parseAllowList } from "../src/lib/email-campaigns/guard";
 import { pollBusinessMailboxes } from "../src/lib/email-campaigns/mailbox";
 import { upgradeIdentitySecrets } from "../src/lib/email-campaigns/upgrade-secrets";
+import { discoveryEnabled, discoveryTick } from "../src/lib/discovery/tick";
 
 const TICK_MS = Number(process.env.WORKER_TICK_MS ?? 30_000);
 let running = false;
+let discoveryRunning = false;
 let stopping = false;
+const DISCOVERY_TICK_MS = Number(process.env.DISCOVERY_TICK_MS ?? 20_000);
 
 const log = (...args: unknown[]) => console.log(new Date().toISOString(), ...args);
 
@@ -51,6 +54,20 @@ async function tick() {
   }
 }
 
+/** Prospect discovery and enrichment run on their own loop, so a slow crawl never delays email sending. */
+async function tickDiscovery() {
+  if (discoveryRunning || stopping || !discoveryEnabled()) return;
+  discoveryRunning = true;
+  try {
+    const t = await discoveryTick({ onError: (where, e) => console.error(new Date().toISOString(), `discovery ${where} failed:`, e) });
+    if (t.planned || t.cells || t.enriched) log("discovery:", JSON.stringify(t));
+  } catch (error) {
+    console.error(new Date().toISOString(), "discovery tick failed:", error);
+  } finally {
+    discoveryRunning = false;
+  }
+}
+
 async function main() {
   const allow = parseAllowList().size;
   log(
@@ -64,15 +81,19 @@ async function main() {
     console.error("could not upgrade stored credentials:", error);
   }
   const timer = setInterval(() => void tick(), TICK_MS);
+  const discoveryTimer = setInterval(() => void tickDiscovery(), DISCOVERY_TICK_MS);
+  log(`discovery: ${discoveryEnabled() ? `on, every ${DISCOVERY_TICK_MS / 1000}s` : "off (DISCOVERY_ENABLED=false)"}.`);
   void tick();
+  void tickDiscovery();
 
   const shutdown = async (signal: string) => {
     if (stopping) return;
     stopping = true;
     log(`${signal} received, finishing the current tick and exiting.`);
     clearInterval(timer);
+    clearInterval(discoveryTimer);
     const started = Date.now();
-    while (running && Date.now() - started < 30_000) await new Promise((r) => setTimeout(r, 250));
+    while ((running || discoveryRunning) && Date.now() - started < 30_000) await new Promise((r) => setTimeout(r, 250));
     await db.$disconnect().catch(() => undefined);
     process.exit(0);
   };

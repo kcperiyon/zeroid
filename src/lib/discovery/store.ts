@@ -1,7 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { Candidate } from "./osm";
 import type { EnrichInput, EnrichResult } from "./enrich";
-import { DEFAULT_SEND_THRESHOLD } from "./emails";
+import { DEFAULT_SEND_THRESHOLD, pickSendable } from "./emails";
 import { buildResearchNote } from "./note";
 import { domainOf, isCompanySite, normalizeName, phoneKey } from "./normalize";
 
@@ -162,6 +162,7 @@ export async function applyEnrichment(tx: Tx, businessId: string, prospectId: st
     });
   }
   const best = result.emails[0];
+  const sendable = pickSendable(result.emails, threshold);
   const note = result.status === "done" ? buildResearchNote(input, result) : prospect.researchNote;
   const prevSignals = (prospect.signals as Record<string, unknown> | null) ?? {};
 
@@ -174,7 +175,7 @@ export async function applyEnrichment(tx: Tx, businessId: string, prospectId: st
       researchNote: note,
       bestEmailConfidence: best?.confidence ?? null,
       // The prospect's own email field only ever holds an address that is good enough to send to.
-      email: best && best.confidence >= threshold ? best.email : prospect.email,
+      email: sendable?.email ?? prospect.email,
       phone: prospect.phone ?? result.signals.phones[0] ?? null,
       signals: { ...prevSignals, ...result.signals },
     },

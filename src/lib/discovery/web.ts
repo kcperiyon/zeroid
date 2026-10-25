@@ -58,12 +58,15 @@ function getOnce(url: URL, opts: Required<WebOptions>): Promise<{ status: number
         timeout: opts.timeoutMs,
         // Runs on every connection, so the address that is actually dialled is the one checked.
         lookup: (hostname, options, callback) => {
-          dns.lookup(hostname, { ...options, all: false }, (err, address, family) => {
+          // Node may ask for every address (options.all) or just one; answer in the shape it asked for.
+          dns.lookup(hostname, options, (err, address, family) => {
             if (err) return callback(err, "", 0);
-            if (!opts.allowPrivate && isPrivateAddress(address)) {
+            const list: { address: string; family: number }[] = Array.isArray(address) ? address : [{ address, family: family as number }];
+            if (!opts.allowPrivate && list.some((a) => isPrivateAddress(a.address))) {
               return callback(new BlockedError(`Refused to connect to a private address (${hostname}).`), "", 0);
             }
-            callback(null, address, family);
+            if (options.all) return (callback as unknown as (e: null, all: typeof list) => void)(null, list);
+            callback(null, list[0].address, list[0].family);
           });
         },
       },
