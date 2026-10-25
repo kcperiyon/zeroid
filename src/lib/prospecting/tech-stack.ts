@@ -22,6 +22,11 @@ const SIGNATURES: { name: string; pattern: RegExp }[] = [
   { name: "Zendesk", pattern: /static\.zdassets\.com/i },
 ];
 
+/** Signature match on HTML that was already fetched (enrichment reuses the page it crawled). */
+export function detectTechFromHtml(html: string): string[] {
+  return SIGNATURES.filter((sig) => sig.pattern.test(html)).map((sig) => sig.name);
+}
+
 export async function detectTechStack(url: string): Promise<string[]> {
   const normalized = url.startsWith("http") ? url : `https://${url}`;
 
@@ -36,5 +41,5 @@ export async function detectTechStack(url: string): Promise<string[]> {
     throw new Error(`Couldn't reach ${normalized}.`);
   }
 
-  return SIGNATURES.filter((sig) => sig.pattern.test(html)).map((sig) => sig.name);
+  return detectTechFromHtml(html);
 }

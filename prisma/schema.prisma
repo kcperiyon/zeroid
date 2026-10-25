@@ -54,6 +54,8 @@ enum LeadChannel {
   news
   youtube
   etsy
+  osm
+  registry
 }
 
 // How a lead arrived, independent of the channel it came through: "organic"
@@ -228,6 +230,9 @@ model Business {
   referrals          Referral[]
   contentItems       ContentItem[]
   prospects          Prospect[]
+  discoveryJobs      DiscoveryJob[]
+  discoveryCells     DiscoveryCell[]
+  prospectEmails     ProspectEmail[]
   whatsappConnection WhatsAppConnection?
   intakeKey          IntakeKey?
   sendingIdentities  SendingIdentity[]
@@ -326,11 +331,109 @@ model Prospect {
   createdAt  DateTime       @default(now())
   leadId     String?        @unique
 
-  business Business @relation(fields: [businessId], references: [id])
-  lead     Lead?    @relation(fields: [leadId], references: [id])
+  // Phase 2 discovery + enrichment. `domain` is the registrable host of `website` (www stripped)
+  // and is the main de-duplication key; `signals` holds what the crawl saw (title, description,
+  // tech, people, phones, social links, pages read, extra sources) and is never trusted as input.
+  domain              String?
+  country             String?
+  lat                 Float?
+  lon                 Float?
+  discoveryJobId      String?
+  enrichStatus        String    @default("none") // none | pending | running | done | failed | skipped
+  enrichAttempts      Int       @default(0)
+  enrichedAt          DateTime?
+  enrichError         String?
+  researchNote        String?
+  signals             Json      @default("{}")
+  bestEmailConfidence Int?
+
+  business Business        @relation(fields: [businessId], references: [id])
+  lead     Lead?           @relation(fields: [leadId], references: [id])
+  emails   ProspectEmail[]
 
   @@unique([businessId, channel, externalId])
   @@index([businessId])
+  @@index([businessId, domain])
+  @@index([enrichStatus, businessId])
+}
+
+// One discovery run: industries x locations, cut into grid cells that are worked off in the
+// background. The caps (maxProspects, maxCells) exist so a typo cannot start an unbounded crawl.
+model DiscoveryJob {
+  id             String    @id @default(cuid())
+  businessId     String
+  organizationId String
+  name           String
+  status         String    @default("planning") // planning | running | paused | done | failed | cancelled
+  industries     Json      @default("[]")
+  locations      Json      @default("[]")
+  sources        Json      @default("[]")
+  maxProspects   Int       @default(300)
+  maxCells       Int       @default(200)
+  autoEnrich     Boolean   @default(true)
+  cellsTotal     Int       @default(0)
+  cellsDone      Int       @default(0)
+  found          Int       @default(0)
+  duplicates     Int       @default(0)
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  startedAt      DateTime?
+  finishedAt     DateTime?
+
+  business Business        @relation(fields: [businessId], references: [id])
+  cells    DiscoveryCell[]
+
+  @@index([businessId, status])
+}
+
+// The queue: one row per (industry, grid square, source). Claimed with FOR UPDATE SKIP LOCKED.
+model DiscoveryCell {
+  id            String    @id @default(cuid())
+  businessId    String
+  jobId         String
+  industry      String
+  locationLabel String
+  source        String
+  south         Float
+  west          Float
+  north         Float
+  east          Float
+  status        String    @default("pending") // pending | running | done | failed
+  attempts      Int       @default(0)
+  found         Int       @default(0)
+  error         String?
+  finishedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  business Business     @relation(fields: [businessId], references: [id])
+  job      DiscoveryJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, status])
+  @@index([status, source])
+}
+
+// Every address we found or derived for a prospect, with how sure we are and why. Only addresses
+// at or above the business threshold are ever copied onto a lead.
+model ProspectEmail {
+  id         String   @id @default(cuid())
+  businessId String
+  prospectId String
+  email      String
+  kind       String // found | role | pattern_guess
+  source     String // page URL, "osm", "jsonld", "pattern:first.last", ...
+  personName String?
+  mxOk       Boolean?
+  catchAll   Boolean?
+  smtp       String   @default("unchecked") // unchecked | accepted | rejected | unknown
+  confidence Int      @default(0)
+  reasons    Json     @default("[]")
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+  prospect Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+
+  @@unique([prospectId, email])
+  @@index([businessId, confidence])
 }
 
 // One real Meta WhatsApp Business number per business, talked to directly
@@ -418,6 +521,10 @@ model Lead {
   engagement        Int?
   decisionAuthority Int?
   leadScore         Int?
+
+  // Set when the lead came from discovery: how sure we are the email works, and a factual research note.
+  emailConfidence Int?
+  researchNote    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

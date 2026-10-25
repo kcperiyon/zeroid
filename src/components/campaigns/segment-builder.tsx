@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClass, Field, ghostButtonClass, inputClass, Notice } from "./ui";
 
-const CHANNELS = ["manual", "csv", "google", "news", "youtube", "etsy", "instagram", "facebook", "whatsapp", "webhook", "api", "referral", "linkedin", "tiktok", "email"];
+const CHANNELS = ["manual", "csv", "google", "news", "youtube", "etsy", "instagram", "facebook", "whatsapp", "webhook", "api", "referral", "linkedin", "tiktok", "email", "osm", "registry"];
 const STAGES = ["new", "contacted", "engaged", "qualified", "hot", "appointment", "proposal", "negotiation", "won", "lost"];
 
 type Preview = { count: number; sample: { name: string | null; company: string | null; email: string | null }[] };

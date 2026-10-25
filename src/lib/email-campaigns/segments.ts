@@ -17,7 +17,7 @@ export type SegmentFilter = z.infer<typeof SegmentFilterSchema>;
 const STAGES = ["new", "contacted", "engaged", "qualified", "hot", "appointment", "proposal", "negotiation", "won", "lost"];
 const CHANNELS = [
   "manual", "csv", "webhook", "whatsapp", "facebook", "instagram", "email", "google", "tiktok",
-  "linkedin", "referral", "api", "news", "youtube", "etsy",
+  "linkedin", "referral", "api", "news", "youtube", "etsy", "osm", "registry",
 ];
 
 /** Turns a validated filter into a Prisma where clause. Always requires an email address. */
