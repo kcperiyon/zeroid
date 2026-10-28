@@ -1,5 +1,5 @@
 import { withBusinessScope } from "@/lib/tenant-db";
-import { geocode, RateLimited, searchOverpass, type Candidate, type FetchLike } from "./osm";
+import { geocode, RateLimited, searchOverpass, overpassMirrors, type Candidate, type FetchLike, type OverpassMirror } from "./osm";
 import { isGooglePlacesConfigured, searchPlaces } from "@/lib/prospecting/google-places";
 import { resolveIndustry } from "./industries";
 import { countryFromAddress, gridCells } from "./normalize";
@@ -16,16 +16,39 @@ import { PoliteCrawler } from "./web";
 export const SOURCES = ["osm", "places"] as const;
 export type Source = (typeof SOURCES)[number];
 
-const OVERPASS_GAP_MS = Number(process.env.OVERPASS_GAP_MS ?? 6000);
 const NOMINATIM_GAP_MS = 1100;
 const STALE_CELL_MS = 10 * 60_000;
 const STALE_ENRICH_MS = 15 * 60_000;
 const MAX_ATTEMPTS = 3;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-let lastOverpassAt = 0;
-let overpassBackoffUntil = 0;
 let lastNominatimAt = 0;
+
+// Independent pacing per Overpass mirror - a cell waiting on one busy/backed-off mirror doesn't
+// have to wait on another that's free right now. Keyed by URL so state survives across calls on
+// this process (module-level, same lifetime as the old single-mirror globals it replaces).
+type MirrorState = { lastAt: number; backoffUntil: number };
+const mirrorStates = new Map<string, MirrorState>();
+
+function mirrorState(url: string): MirrorState {
+  let s = mirrorStates.get(url);
+  if (!s) {
+    s = { lastAt: 0, backoffUntil: 0 };
+    mirrorStates.set(url, s);
+  }
+  return s;
+}
+
+/** Picks whichever configured mirror becomes available soonest. */
+function pickMirror(mirrors: OverpassMirror[]): { mirror: OverpassMirror; availableAt: number } {
+  let best: { mirror: OverpassMirror; availableAt: number } | null = null;
+  for (const mirror of mirrors) {
+    const s = mirrorState(mirror.url);
+    const availableAt = Math.max(s.lastAt + mirror.gapMs, s.backoffUntil);
+    if (!best || availableAt < best.availableAt) best = { mirror, availableAt };
+  }
+  return best!;
+}
 
 export type JobConfig = {
   name: string;
@@ -166,11 +189,19 @@ async function search(cell: Cell, deps: RunnerDeps): Promise<Candidate[]> {
   if (!industry) throw new Error(`Unknown industry "${cell.industry}".`);
   const wait = deps.sleepFn ?? sleep;
   if (cell.source === "osm") {
-    const gapMs = deps.overpassGapMs ?? OVERPASS_GAP_MS;
-    const until = Math.max(lastOverpassAt + gapMs, overpassBackoffUntil);
-    if (Date.now() < until) await wait(until - Date.now());
-    lastOverpassAt = Date.now();
-    return searchOverpass(industry, { south: cell.south, west: cell.west, north: cell.north, east: cell.east }, deps.fetch);
+    // deps.overpassGapMs (tests pass 0) overrides every mirror's own pacing uniformly, so a
+    // test forcing no delay doesn't have to know which mirror got picked.
+    const mirrors = overpassMirrors().map((m) => (deps.overpassGapMs !== undefined ? { ...m, gapMs: deps.overpassGapMs! } : m));
+    const { mirror, availableAt } = pickMirror(mirrors);
+    if (Date.now() < availableAt) await wait(availableAt - Date.now());
+    mirrorState(mirror.url).lastAt = Date.now();
+    try {
+      return await searchOverpass(industry, { south: cell.south, west: cell.west, north: cell.north, east: cell.east }, deps.fetch, mirror.url);
+    } catch (e) {
+      // Back off only the mirror that actually failed - the others keep working.
+      if (e instanceof RateLimited) mirrorState(mirror.url).backoffUntil = Date.now() + 30_000 * (cell.attempts + 1);
+      throw e;
+    }
   }
   if (cell.source === "places") {
     if (!(deps.placesConfigured ?? isGooglePlacesConfigured)()) throw new Error("Google Places is not configured for this server.");
@@ -198,8 +229,9 @@ export async function runCells(organizationId: string, businessId: string, budge
     } catch (e) {
       error = (e as Error).message;
       if (e instanceof RateLimited) {
+        // Per-mirror backoff is already set inside search() itself, scoped to whichever
+        // mirror actually failed - nothing global to set here any more.
         retry = cell.attempts + 1 < MAX_ATTEMPTS;
-        overpassBackoffUntil = Date.now() + 30_000 * (cell.attempts + 1);
       } else retry = false;
     }
 

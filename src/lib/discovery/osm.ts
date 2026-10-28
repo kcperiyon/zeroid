@@ -11,6 +11,34 @@ export const USER_AGENT = process.env.DISCOVERY_USER_AGENT ?? "ZeroidDiscovery/1
 const OVERPASS_URL = process.env.OVERPASS_URL ?? "https://overpass-api.de/api/interpreter";
 const NOMINATIM_URL = process.env.NOMINATIM_URL ?? "https://nominatim.openstreetmap.org/search";
 
+export type OverpassMirror = { url: string; gapMs: number };
+
+// A privately-run instance (our own, or anyone's) has no third-party politeness budget to
+// respect - if one is configured, use only that, at a much tighter self-throttle (still >0 so
+// we don't flood our own box's DB with every cell at once).
+const SELF_HOSTED_URL = process.env.OVERPASS_SELF_HOSTED_URL;
+const SELF_HOSTED_GAP_MS = Number(process.env.OVERPASS_SELF_HOSTED_GAP_MS ?? 250);
+
+// overpass-api.de's own wiki page currently says it's overloaded and asks heavy users to use
+// alternatives - so it's kept as one mirror among several rather than the sole endpoint, spacing
+// requests across independent public instances instead of serializing everything onto one.
+// Each entry's gapMs reflects what that instance's own usage policy currently states (checked
+// against OSM's wiki "Public Overpass API instances" table, not guessed):
+//   - overpass-api.de: official main instance, now overloaded, 6s floor kept as a courtesy.
+//   - maps.mail.ru (VK Maps): "no rate limitations currently", 2 servers/56 cores/384GB RAM each.
+//   - overpass.private.coffee: "no rate limit in place", but asks for a heads-up before
+//     large-scale use, so kept more conservative than VK's stated-unlimited policy.
+const PUBLIC_MIRRORS: OverpassMirror[] = [
+  { url: OVERPASS_URL, gapMs: Number(process.env.OVERPASS_GAP_MS ?? 6000) },
+  { url: "https://maps.mail.ru/osm/tools/overpass/api/interpreter", gapMs: 2000 },
+  { url: "https://overpass.private.coffee/api/interpreter", gapMs: 4000 },
+];
+
+export function overpassMirrors(): OverpassMirror[] {
+  if (SELF_HOSTED_URL) return [{ url: SELF_HOSTED_URL, gapMs: SELF_HOSTED_GAP_MS }];
+  return PUBLIC_MIRRORS;
+}
+
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 export type Candidate = {
@@ -86,10 +114,10 @@ export function parseOverpass(body: { elements?: OsmElement[] }, industry: Indus
 
 export class RateLimited extends Error {}
 
-export async function searchOverpass(industry: Industry, box: Point, fetchFn: FetchLike = fetch): Promise<Candidate[]> {
+export async function searchOverpass(industry: Industry, box: Point, fetchFn: FetchLike = fetch, url: string = OVERPASS_URL): Promise<Candidate[]> {
   let res: Response;
   try {
-    res = await fetchFn(OVERPASS_URL, {
+    res = await fetchFn(url, {
       method: "POST",
       headers: { "User-Agent": USER_AGENT, "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
       body: new URLSearchParams({ data: buildOverpassQuery(industry, box) }).toString(),

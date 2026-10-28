@@ -68,11 +68,33 @@ by hand. Queue rows stuck "running" after a crash are reclaimed after 10–15 mi
 |---|---|
 | `DISCOVERY_ENABLED` | `false` switches the loop off (default on; it only does anything when a search exists) |
 | `DISCOVERY_TICK_MS` | loop interval, default 20000 |
-| `OVERPASS_URL`, `NOMINATIM_URL` | alternative public or self-hosted mirrors |
-| `OVERPASS_GAP_MS` | minimum gap between Overpass queries, default 6000 |
+| `OVERPASS_URL`, `NOMINATIM_URL` | override the primary Overpass/Nominatim endpoint |
+| `OVERPASS_GAP_MS` | minimum gap for the primary Overpass mirror, default 6000 |
+| `OVERPASS_SELF_HOSTED_URL` | when set, skip the public-mirror rotation entirely and use only this instance (see "Overpass throughput" below) |
+| `OVERPASS_SELF_HOSTED_GAP_MS` | self-throttle for the self-hosted instance, default 250 |
 | `DISCOVERY_USER_AGENT`, `CRAWLER_USER_AGENT` | override the identifying user-agents |
 | `SMTP_PROBE_HELO`, `SMTP_PROBE_FROM` | enable the mailbox check; must be a real hostname and mailbox of the sending domain. **Unset = check off.** |
 | `COMMONCRAWL_INDEX`, `COMMONCRAWL_DATA` | alternative endpoints |
+
+### Overpass throughput
+
+By default, OSM cells don't hit one Overpass endpoint - they rotate across three independent
+public instances (`lib/discovery/osm.ts`'s `overpassMirrors()`), each paced to its own current
+usage policy, with its own backoff if it starts returning busy/error responses:
+
+| mirror | gap | why |
+|---|---|---|
+| overpass-api.de (`OVERPASS_URL`/`OVERPASS_GAP_MS`) | 6000ms | the main instance; its own wiki page currently says it's overloaded |
+| maps.mail.ru (VK Maps) | 2000ms | states "no rate limitations currently"; 2 servers, 56 cores/384GB RAM each |
+| overpass.private.coffee | 4000ms | states "no rate limit", but asks for a heads-up before large-scale use, so kept more conservative |
+
+A cell is sent to whichever mirror becomes free soonest, so the effective wait is roughly a third
+of the old single-mirror 6s gap, not three times the query volume against any one of them. If a
+mirror starts throwing busy/error responses, only that mirror backs off - the others keep going.
+
+Set `OVERPASS_SELF_HOSTED_URL` to skip this rotation entirely and query only a privately-run
+Overpass instance (e.g. one built from a regional OSM extract) - no third-party policy to respect
+at all, so throughput is limited only by that instance's own hardware.
 
 ## Honest limits
 
